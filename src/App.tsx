@@ -6,6 +6,7 @@ import SignInPage from './components/auth/SignInPage';
 import SignUpPage from './components/auth/SignUpPage';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
+import Caja from './pages/Caja';
 
 export default function App() {
   return (
@@ -39,6 +40,20 @@ export default function App() {
             <>
               <SignedIn>
                 <Profile />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        <Route
+          path="/caja"
+          element={
+            <>
+              <SignedIn>
+                <Caja />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />

@@ -4,6 +4,7 @@ import { UserButton, useUser } from '@clerk/clerk-react';
 
 const links = [
   { to: '/dashboard', label: 'Inicio' },
+  { to: '/caja', label: 'Caja' },
   { to: '/profile', label: 'Perfil' },
 ];
 
