@@ -7,6 +7,7 @@ import SignUpPage from './components/auth/SignUpPage';
 import Dashboard from './pages/Dashboard';
 import Profile from './pages/Profile';
 import Caja from './pages/Caja';
+import GestionPersonal from './pages/GestionPersonal';
 
 export default function App() {
   return (
@@ -54,6 +55,20 @@ export default function App() {
             <>
               <SignedIn>
                 <Caja />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        <Route
+          path="/personal"
+          element={
+            <>
+              <SignedIn>
+                <GestionPersonal />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />

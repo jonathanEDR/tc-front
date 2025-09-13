@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { 
   IMovimientoCaja, 
   TipoMovimiento,
   LABELS_CATEGORIA,
-  LABELS_TIPO_COSTO 
+  LABELS_TIPO_COSTO,
+  LABELS_CATEGORIA_INGRESO 
 } from '../../types/caja';
 import { formatearMonto } from '../../utils/cajaApi';
 import { dateUtils } from '../../utils/dateUtils';
@@ -13,14 +15,26 @@ interface Props {
   loading: boolean;
   error: string | null;
   onEliminar: (id: string) => Promise<void>;
+  processingAction?: boolean;
 }
 
-const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onEliminar }) => {
+const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onEliminar, processingAction = false }) => {
+  const { user } = useUser();
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  
   const handleEliminar = async (id: string) => {
+    if (eliminandoId || processingAction) return; // Prevenir clicks múltiples
+    
     if (!window.confirm('¿Estás seguro de eliminar este movimiento?')) {
       return;
     }
-    await onEliminar(id);
+    
+    setEliminandoId(id);
+    try {
+      await onEliminar(id);
+    } finally {
+      setEliminandoId(null);
+    }
   };
 
   if (error) {
@@ -81,22 +95,28 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Descripción
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Categoría
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Método Pago
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Monto
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Usuario
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ingresos
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Salidas
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
                   </th>
                 </tr>
@@ -104,19 +124,19 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
               <tbody className="bg-white divide-y divide-gray-200">
                 {movimientos.map((movimiento) => (
                   <tr key={movimiento._id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {/* Fecha */}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex flex-col">
-                        <span className="font-medium">
+                        <span className="font-medium text-xs">
                           {dateUtils.formatters.shortDateTime(movimiento.fechaCaja)}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {dateUtils.formatters.shortDate(movimiento.fechaCaja)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
+                    
+                    {/* Descripción */}
+                    <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="max-w-xs">
-                        <p className="truncate font-medium">{movimiento.descripcion}</p>
+                        <p className="font-medium text-sm truncate">{movimiento.descripcion}</p>
                         {movimiento.observaciones && (
                           <p className="text-xs text-gray-500 truncate mt-1">
                             {movimiento.observaciones}
@@ -124,49 +144,92 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                        {movimiento.categoria ? LABELS_CATEGORIA[movimiento.categoria] : 'Sin categoría'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {movimiento.tipoCosto ? LABELS_TIPO_COSTO[movimiento.tipoCosto] : 'Sin tipo'}
-                      </span>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold ${
-                      movimiento.tipoMovimiento === TipoMovimiento.ENTRADA ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      <div className="flex items-center">
+                    
+                    {/* Categoría con Tipo debajo */}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <div className="flex flex-col space-y-1">
                         {movimiento.tipoMovimiento === TipoMovimiento.ENTRADA ? (
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" />
-                          </svg>
+                          // Para ENTRADAS: solo mostrar categoría de ingreso
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                            {movimiento.categoriaIngreso ? LABELS_CATEGORIA_INGRESO[movimiento.categoriaIngreso] : 'Sin categoría'}
+                          </span>
                         ) : (
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.707-10.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L9.414 11H13a1 1 0 100-2H9.414l1.293-1.293z" clipRule="evenodd" />
-                          </svg>
+                          // Para SALIDAS: mostrar categoría y tipo como antes
+                          <>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              {movimiento.categoria ? LABELS_CATEGORIA[movimiento.categoria] : 'Sin categoría'}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                              {movimiento.tipoCosto ? LABELS_TIPO_COSTO[movimiento.tipoCosto] : 'Sin tipo'}
+                            </span>
+                          </>
                         )}
-                        {movimiento.tipoMovimiento === TipoMovimiento.ENTRADA ? '+' : '-'}
-                        {formatearMonto(movimiento.monto)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {movimiento.metodoPago}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
+                    
+                    {/* Método de Pago */}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                      {movimiento.metodoPago}
+                    </td>
+                    
+                    {/* Usuario */}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900 text-xs">
+                          {movimiento.usuario?.name || 'Usuario desconocido'}
+                        </span>
+                        <span className="text-xs text-gray-500 truncate max-w-32">
+                          {movimiento.usuario?.email}
+                        </span>
+                      </div>
+                    </td>
+                    
+                    {/* Ingresos */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                      {movimiento.tipoMovimiento === TipoMovimiento.ENTRADA ? (
+                        <div className="text-green-600 font-semibold">
+                          +${formatearMonto(movimiento.monto)}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    
+                    {/* Salidas */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right">
+                      {movimiento.tipoMovimiento === TipoMovimiento.SALIDA ? (
+                        <div className="text-red-600 font-semibold">
+                          -${formatearMonto(movimiento.monto)}
+                        </div>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    
+                    {/* Acciones */}
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <div className="flex justify-center space-x-1">
+                        {user?.id === movimiento.usuario?.clerkId && (
+                          <button
+                            onClick={() => handleEliminar(movimiento._id!)}
+                            disabled={eliminandoId === movimiento._id || processingAction}
+                            className="text-red-600 hover:text-red-800 transition-colors duration-200 p-1 rounded hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Eliminar"
+                          >
+                            {eliminandoId === movimiento._id ? (
+                              <svg className="animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
                         <button
-                          onClick={() => handleEliminar(movimiento._id!)}
-                          className="text-red-600 hover:text-red-900 transition-colors duration-200 p-1 rounded-md hover:bg-red-50"
-                          title="Eliminar movimiento"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                        <button
-                          className="text-blue-600 hover:text-blue-900 transition-colors duration-200 p-1 rounded-md hover:bg-blue-50"
+                          className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 rounded hover:bg-blue-50"
                           title="Ver detalles"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

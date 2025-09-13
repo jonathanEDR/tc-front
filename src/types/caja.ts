@@ -52,6 +52,7 @@ export interface IMovimientoCaja {
   metodoPago: MetodoPago;
   usuario?: {
     _id: string;
+    clerkId: string;
     name: string;
     email: string;
   };

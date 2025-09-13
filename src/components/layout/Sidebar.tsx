@@ -2,63 +2,184 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { UserButton, useUser } from '@clerk/clerk-react';
 
-const links = [
-  { to: '/dashboard', label: 'Inicio' },
-  { to: '/caja', label: 'Caja' },
-  { to: '/profile', label: 'Perfil' },
+// Definición de categorías y módulos de navegación
+const navigationSections = [
+  {
+    title: 'GESTIÓN DE USUARIOS',
+    items: [
+      {
+        to: '/dashboard',
+        label: 'Dashboard',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        )
+      },
+      {
+        to: '/personal',
+        label: 'Gestión de Personal',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        )
+      }
+    ]
+  },
+  {
+    title: 'OPERACIONES',
+    items: [
+      {
+        to: '/caja',
+        label: 'Gestión de Caja',
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      }
+    ]
+  }
 ];
 
 type SidebarProps = {
   className?: string;
   onClose?: () => void;
   showClose?: boolean;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 };
 
-export default function Sidebar({ className = '', onClose, showClose = false }: SidebarProps) {
+export default function Sidebar({ className = '', onClose, showClose = false, collapsed = false, onToggleCollapse }: SidebarProps) {
   const { user } = useUser();
+  
   return (
-    <aside className={`w-64 min-h-[80vh] flex flex-col bg-gradient-to-b from-white via-blue-50 to-blue-100 rounded-xl shadow-lg border border-blue-100 ${className}`} aria-label="Menú lateral">
-      {/* Botón de cerrar SOLO en móvil (md:hidden) */}
-      {showClose && (
-        <button
-          aria-label="Cerrar menú lateral"
-          className="absolute top-2 right-2 px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 md:hidden"
-          onClick={onClose}
-        >
-          <span aria-hidden>×</span>
-        </button>
-      )}
-      {/* Avatar y título */}
-      <div className="flex flex-col items-center gap-2 py-6 border-b border-blue-100 mb-4">
-        <div className="w-16 h-16 rounded-full overflow-hidden shadow">
-          {user ? <img src={user.imageUrl} alt="avatar" className="w-full h-full object-cover" /> : <div className="bg-gray-200 w-full h-full" />}
-        </div>
-        <div className="text-lg font-semibold text-blue-900">{user?.firstName || 'Usuario'}</div>
-        <div className="text-xs text-gray-500">{user?.primaryEmailAddress?.emailAddress || ''}</div>
-      </div>
-      {/* Menú */}
-      <nav className="flex-1 space-y-1 px-2" tabIndex={0}>
-        {links.map(l => (
-          <NavLink
-            key={l.to}
-            to={l.to}
-            className={({ isActive }) =>
-              `block px-4 py-2 rounded-lg transition-colors duration-150 outline-none focus:ring-2 focus:ring-blue-400 font-medium text-base ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'hover:bg-blue-100 hover:text-blue-700 text-blue-900'
-              }`
-            }
+    <div className={`h-screen ${collapsed ? 'w-16' : 'w-64'} bg-gray-50 border-r border-gray-200 flex flex-col transition-all duration-300 ${className}`}>
+      {/* Header del Sidebar */}
+      <div className="bg-white border-b border-gray-200 p-4 relative">
+        {showClose && (
+          <button
             onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 lg:hidden"
           >
-            {l.label}
-          </NavLink>
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+        
+        {/* Botón toggle para desktop */}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="absolute top-4 right-4 hidden lg:block p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+          </button>
+        )}
+        
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'space-x-3'}`}>
+          <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+            <span className="text-white font-bold text-lg">TC</span>
+          </div>
+          {!collapsed && (
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Panel Super</h1>
+              <h2 className="text-lg font-bold text-gray-900">Admin</h2>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navegación por secciones */}
+      <nav className="flex-1 overflow-y-auto py-4">
+        {navigationSections.map((section, sectionIndex) => (
+          <div key={sectionIndex} className="mb-6">
+            {!collapsed && (
+              <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                {section.title}
+              </h3>
+            )}
+            <div className="space-y-1 px-2">
+              {section.items.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center ${collapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-600'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    }`
+                  }
+                  title={collapsed ? item.label : undefined}
+                >
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  {!collapsed && <span>{item.label}</span>}
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
-      {/* Footer */}
-      <div className="mt-6 mb-2 px-2">
-        <UserButton afterSignOutUrl="/" />
+
+      {/* Footer con información del usuario */}
+      <div className="border-t border-gray-200 p-4">
+        {!collapsed ? (
+          <>
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="w-8 h-8 rounded-full overflow-hidden">
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt="avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+                    <span className="text-gray-600 text-xs font-bold">
+                      {user?.firstName?.charAt(0) || 'U'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.firstName || 'Usuario'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.primaryEmailAddress?.emailAddress || ''}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <UserButton 
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "hidden",
+                    userButtonPopoverCard: "bg-white"
+                  }
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-center">
+            <div className="w-8 h-8 rounded-full overflow-hidden">
+              {user?.imageUrl ? (
+                <img src={user.imageUrl} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gray-300 flex items-center justify-center">
+                  <span className="text-gray-600 text-xs font-bold">
+                    {user?.firstName?.charAt(0) || 'U'}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-    </aside>
+    </div>
   );
 }
