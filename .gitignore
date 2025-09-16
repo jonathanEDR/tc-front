@@ -12,6 +12,14 @@ build/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+
+# Variables de entorno sensibles
+*.env
+.env.*
+!.env.example
+!.env.local.example
 
 # Logs
 npm-debug.log*

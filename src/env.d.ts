@@ -4,6 +4,13 @@
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_CLERK_PUBLISHABLE_KEY: string;
+  readonly VITE_NODE_ENV?: string;
+  readonly VITE_DEBUG?: string;
+  readonly VITE_ENABLE_ANALYTICS?: string;
+  readonly VITE_ENABLE_ERROR_REPORTING?: string;
+  readonly MODE: string;
+  readonly DEV: boolean;
+  readonly PROD: boolean;
 }
 
 interface ImportMeta {
