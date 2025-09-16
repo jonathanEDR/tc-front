@@ -5,13 +5,16 @@ export const setupAxiosInterceptors = () => {
   // Interceptor para requests
   axios.interceptors.request.use(
     async (config) => {
-      // Solo agregar token si es una ruta que requiere autenticación
-      if (config.url?.includes('/api/auth/me')) {
+      // Agregar token para todas las rutas API protegidas
+      if (config.url?.includes('/api/')) {
         try {
           // Obtener token de Clerk desde el navegador
           const token = await window.Clerk?.session?.getToken();
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+            console.log('[axios] Token agregado a la petición:', config.url);
+          } else {
+            console.warn('[axios] No se pudo obtener token de Clerk para:', config.url);
           }
         } catch (error) {
           console.warn('No se pudo obtener token de Clerk:', error);

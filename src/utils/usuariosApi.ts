@@ -18,28 +18,51 @@ const getAuthHeaders = async () => {
       token = await window.Clerk.session.getToken();
     }
     
-    // Método 2: Desde localStorage/sessionStorage si es necesario
-    if (!token && typeof window !== 'undefined') {
-      // Aquí podrías implementar otra lógica para obtener el token
+    if (!token) {
+      console.warn('[usuariosApi] No se pudo obtener token de autenticación');
+      throw new Error('No se pudo obtener token de autenticación');
     }
 
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    console.log('[usuariosApi] Token obtenido exitosamente');
+    return { Authorization: `Bearer ${token}` };
   } catch (error) {
-    console.warn('Error al obtener token de autenticación:', error);
-    return {};
+    console.error('Error al obtener token de autenticación:', error);
+    throw error;
   }
 };
 
 // Obtener todos los usuarios
 export const obtenerUsuarios = async (): Promise<IUsuariosResponse> => {
-  const headers = await getAuthHeaders();
-  const response = await axios.get(`${BASE_URL}/users`, { headers });
-  return response.data;
+  try {
+    const headers = await getAuthHeaders();
+    console.log('[usuariosApi] Obteniendo usuarios desde:', `${BASE_URL}/users`);
+    const response = await axios.get(`${BASE_URL}/users`, { headers });
+    console.log('[usuariosApi] Usuarios obtenidos exitosamente:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[usuariosApi] Error al obtener usuarios:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+    }
+    throw error;
+  }
 };
 
 // Obtener estadísticas de usuarios
 export const obtenerEstadisticasUsuarios = async (): Promise<IEstadisticasUsuariosResponse> => {
-  const headers = await getAuthHeaders();
-  const response = await axios.get(`${BASE_URL}/users/stats`, { headers });
-  return response.data;
+  try {
+    const headers = await getAuthHeaders();
+    console.log('[usuariosApi] Obteniendo estadísticas desde:', `${BASE_URL}/users/stats`);
+    const response = await axios.get(`${BASE_URL}/users/stats`, { headers });
+    console.log('[usuariosApi] Estadísticas obtenidas exitosamente:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('[usuariosApi] Error al obtener estadísticas:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
+    }
+    throw error;
+  }
 };
