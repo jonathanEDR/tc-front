@@ -1,30 +1,43 @@
 import React from 'react';
 import { SignUp } from '@clerk/clerk-react';
+import { useUser } from '@clerk/clerk-react';
+import { useEffect } from 'react';
+import { apiClient } from '../../utils/api';
 import axios from 'axios';
 
 export default function SignUpPage() {
-  const handleSignUpComplete = async (user: any) => {
-    try {
-      // Extraer datos del usuario de Clerk
-      const userData = {
-        name: `${user.firstName} ${user.lastName}`.trim(),
-        email: user.primaryEmailAddress?.emailAddress,
-        clerkId: user.id
-      };
+  const { user, isSignedIn } = useUser();
 
-      // Enviar datos al backend para guardar en BD
-      const response = await axios.post('/api/auth/register', userData, {
-        headers: {
-          'Content-Type': 'application/json',
+  useEffect(() => {
+    const registerUserInBackend = async () => {
+      if (isSignedIn && user) {
+        try {
+          // Extraer datos del usuario de Clerk
+          const userData = {
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Usuario',
+            email: user.primaryEmailAddress?.emailAddress,
+            clerkId: user.id
+          };
+
+          console.log('Registrando usuario en backend:', userData);
+
+          // Enviar datos al backend para guardar en BD
+          const response = await axios.post(apiClient.register, userData, {
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+
+          console.log('Usuario guardado en BD:', response.data);
+        } catch (error) {
+          console.error('Error al guardar usuario en BD:', error);
+          // Aquí podrías mostrar un mensaje de error al usuario
         }
-      });
+      }
+    };
 
-      console.log('Usuario guardado en BD:', response.data);
-    } catch (error) {
-      console.error('Error al guardar usuario en BD:', error);
-      // Aquí podrías mostrar un mensaje de error al usuario
-    }
-  };
+    registerUserInBackend();
+  }, [isSignedIn, user]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center">
