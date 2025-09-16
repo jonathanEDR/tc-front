@@ -18,24 +18,34 @@ export default defineConfig({
     }
   },
   build: {
-    // Optimizaciones para producción
+    // Optimizaciones para producción y Vercel
+    outDir: 'dist',
     minify: 'esbuild',
     target: 'es2015',
+    sourcemap: false, // Deshabilitar sourcemaps en producción
     rollupOptions: {
       output: {
         manualChunks: {
           // Separar vendor chunks para mejor caching
           vendor: ['react', 'react-dom'],
           clerk: ['@clerk/clerk-react'],
-          router: ['react-router-dom']
+          router: ['react-router-dom'],
+          utils: ['axios', 'date-fns', 'zod']
         }
       }
     },
     // Reportar chunks grandes
-    chunkSizeWarningLimit: 1000
+    chunkSizeWarningLimit: 1000,
+    // Optimizar para Vercel
+    assetsDir: 'assets',
+    emptyOutDir: true
   },
   // Optimizar dependencias
   optimizeDeps: {
-    include: ['react', 'react-dom', '@clerk/clerk-react', 'react-router-dom']
+    include: ['react', 'react-dom', '@clerk/clerk-react', 'react-router-dom', 'axios']
+  },
+  // Configuración específica para producción
+  define: {
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
   }
 });
