@@ -10,14 +10,18 @@ import {
 import { useApiWithAuth } from '../utils/useApiWithAuth';
 import FormularioMovimiento from '../components/caja/FormularioMovimiento';
 import TablaMovimientos from '../components/caja/TablaMovimientos';
+import TablaMovimientosMobile from '../components/caja/TablaMovimientosMobile';
 import ResumenCards from '../components/caja/ResumenCards';
 import FiltrosCaja from '../components/caja/FiltrosCaja';
 import Paginacion from '../components/caja/Paginacion';
+import GraficoCajaLineal from '../components/graficos/GraficoCajaLineal';
 import { DateTimeDisplay } from '../components/common/DateTimeComponents';
+import { useIsMobile } from '../hooks/useResponsive';
 
 const Caja: React.FC = () => {
   const { isLoaded, isSignedIn } = useAuth();
   const api = useApiWithAuth();
+  const isMobile = useIsMobile();
   const [movimientos, setMovimientos] = useState<IMovimientoCaja[]>([]);
   const [resumen, setResumen] = useState<IResumenCaja>({
     totalEntradas: 0,
@@ -124,6 +128,7 @@ const Caja: React.FC = () => {
   };
 
   const handleAbrirSalidaForm = () => {
+    console.log('[CAJA] 🔴 Abriendo formulario de SALIDA...');
     if (processingAction || showIngresoForm || showSalidaForm) return;
     setProcessingAction(true);
     setShowSalidaForm(true);
@@ -151,22 +156,25 @@ const Caja: React.FC = () => {
 
   if (loading && movimientos.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando movimientos...</p>
+      <DashboardLayout title="Módulo Caja">
+        <div className="flex items-center justify-center min-h-96">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Cargando movimientos...</p>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout title="Módulo Caja">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
+    <DashboardLayout title="Gestión de Caja">
+      <div className="space-y-6">
+        {/* Header mejorado */}
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">💰 Gestión de Caja</h1>
               <p className="text-gray-600">Gestiona tus ingresos y egresos de manera eficiente</p>
               <div className="mt-2 flex items-center space-x-2 text-sm text-gray-500">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -226,6 +234,9 @@ const Caja: React.FC = () => {
           loading={loading}
         />
 
+        {/* Gráfico de Control de Gastos */}
+        <GraficoCajaLineal className="mb-6" />
+
         {/* Modales para formularios */}
         {showIngresoForm && (
           <FormularioMovimiento
@@ -257,14 +268,24 @@ const Caja: React.FC = () => {
           loading={loading}
         />
 
-        {/* Tabla de movimientos - Ahora usando el componente modularizado */}
-        <TablaMovimientos
-          movimientos={movimientos}
-          loading={loading}
-          error={error}
-          onEliminar={handleEliminar}
-          processingAction={processingAction}
-        />
+        {/* Tabla de movimientos - Responsive: móvil vs desktop */}
+        {isMobile ? (
+          <TablaMovimientosMobile
+            movimientos={movimientos}
+            loading={loading}
+            error={error}
+            onEliminar={handleEliminar}
+            processingAction={processingAction}
+          />
+        ) : (
+          <TablaMovimientos
+            movimientos={movimientos}
+            loading={loading}
+            error={error}
+            onEliminar={handleEliminar}
+            processingAction={processingAction}
+          />
+        )}
 
         {/* Paginación - Ahora usando el componente modularizado */}
         <Paginacion

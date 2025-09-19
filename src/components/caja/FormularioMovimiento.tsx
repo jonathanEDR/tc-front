@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   IFormularioMovimiento, 
   TipoMovimiento,
@@ -12,8 +12,26 @@ import {
   OPCIONES_METODO_PAGO,
   OPCIONES_TIPO_MOVIMIENTO 
 } from '../../types/caja';
+import { ICatalogoGasto, EstadoGasto, CategoriaGasto } from '../../types/herramientas';
 import { useApiWithAuth } from '../../utils/useApiWithAuth';
+import { obtenerCatalogoGastos } from '../../utils/herramientasApi';
+import FormularioCatalogo from '../herramientas/FormularioCatalogo';
 import { dateUtils } from '../../utils/dateUtils';
+
+// Mapeo de categorías de catálogo a tipos de costo de caja
+const MAPEO_CATEGORIA_TIPO_COSTO = {
+  [CategoriaGasto.MANO_OBRA]: TipoCosto.MANO_OBRA,
+  [CategoriaGasto.MATERIA_PRIMA]: TipoCosto.MATERIA_PRIMA,
+  [CategoriaGasto.OTROS_GASTOS]: TipoCosto.OTROS_GASTOS
+} as const;
+
+// Mapeo de categorías de caja a tipos de costo (autocompletado por defecto)
+const MAPEO_CATEGORIA_CAJA_TIPO_COSTO = {
+  [CategoriaCaja.OPERACIONES]: TipoCosto.OTROS_GASTOS,
+  [CategoriaCaja.ADMINISTRATIVO]: TipoCosto.OTROS_GASTOS,
+  [CategoriaCaja.VENTAS]: TipoCosto.OTROS_GASTOS,
+  [CategoriaCaja.FINANZAS]: TipoCosto.OTROS_GASTOS
+} as const;
 
 interface Props {
   tipoMovimiento?: TipoMovimiento; // Tipo predefinido opcional
@@ -24,10 +42,18 @@ interface Props {
 const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoProp, onSuccess, onCancel }) => {
   const api = useApiWithAuth();
   
+  // Función para autocompletar tipoCosto basado en la categoría
+  const autocompletarTipoCosto = (categoria: CategoriaCaja): TipoCosto => {
+    return MAPEO_CATEGORIA_CAJA_TIPO_COSTO[categoria] || TipoCosto.OTROS_GASTOS;
+  };
+  
+  // Generar fecha inicial solo una vez
+  const fechaInicial = dateUtils.input.getCurrentInputDateTime();
+  
   // Valores por defecto según el tipo de movimiento
   const getDefaultValues = (): IFormularioMovimiento => {
     const baseDefaults = {
-      fechaCaja: dateUtils.input.getCurrentInputDateTime(), // Usar fecha y hora actual
+      fechaCaja: fechaInicial, // Usar la fecha fija generada una sola vez
       monto: '',
       tipoMovimiento: tipoMovimientoProp || TipoMovimiento.ENTRADA,
       descripcion: '',
@@ -42,24 +68,109 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         categoriaIngreso: CategoriaIngreso.VENTA_DIRECTA // Categoría por defecto para ingresos
       };
     } else if (tipoMovimientoProp === TipoMovimiento.SALIDA) {
+      const categoriaDefault = CategoriaCaja.OPERACIONES;
       return {
         ...baseDefaults,
-        categoria: CategoriaCaja.OPERACIONES, // Categoría por defecto para salidas
-        tipoCosto: TipoCosto.MANO_OBRA // Tipo de costo por defecto
+        categoria: categoriaDefault, // Categoría por defecto para salidas
+        tipoCosto: autocompletarTipoCosto(categoriaDefault) // Autocompletar tipo de costo
       };
     } else {
+      const categoriaDefault = CategoriaCaja.OPERACIONES;
       return {
         ...baseDefaults,
-        categoria: CategoriaCaja.OPERACIONES,
-        tipoCosto: TipoCosto.OTROS_GASTOS
+        categoria: categoriaDefault,
+        tipoCosto: autocompletarTipoCosto(categoriaDefault)
       };
     }
   };
 
-  const [formData, setFormData] = useState<IFormularioMovimiento>(getDefaultValues());
+  const [formData, setFormData] = useState<IFormularioMovimiento>(() => getDefaultValues());
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Estados para el catálogo de gastos
+  const [catalogoGastos, setCatalogoGastos] = useState<ICatalogoGasto[]>([]);
+  const [mostrarCatalogo, setMostrarCatalogo] = useState(false);
+  const [busquedaCatalogo, setBusquedaCatalogo] = useState('');
+  const [mostrarCrearGasto, setMostrarCrearGasto] = useState(false);
+  
+  // Estado para controlar si el tipoCosto fue autocompletado desde el catálogo
+  const [tipoCostoAutocompletado, setTipoCostoAutocompletado] = useState(false);
+
+  // Cargar catálogo de gastos cuando el tipo de movimiento es SALIDA
+  useEffect(() => {
+    const cargarCatalogo = async () => {
+      // Usar tipoMovimientoProp si existe, sino usar el del formData
+      const tipoMovimiento = tipoMovimientoProp || formData.tipoMovimiento;
+      
+      if (tipoMovimiento === TipoMovimiento.SALIDA) {
+        try {
+          const response = await obtenerCatalogoGastos({
+            page: 1,
+            limit: 100, // Cargar los primeros 100 gastos activos
+            estado: EstadoGasto.ACTIVO
+          });
+          setCatalogoGastos(response.data.gastos || []);
+        } catch (error) {
+          console.error('Error cargando catálogo:', error);
+        }
+      }
+    };
+
+    cargarCatalogo();
+  }, [tipoMovimientoProp]); // Solo depender del prop, no del formData
+
+  // Filtrar gastos del catálogo basado en la búsqueda
+  const gastosFiltrados = catalogoGastos.filter(gasto =>
+    gasto.nombre.toLowerCase().includes(busquedaCatalogo.toLowerCase()) ||
+    gasto.descripcion?.toLowerCase().includes(busquedaCatalogo.toLowerCase())
+  );
+
+  // Seleccionar un gasto del catálogo
+  const seleccionarGastoCatalogo = (gasto: ICatalogoGasto) => {
+    // Mapear la categoría del catálogo al tipo de costo correspondiente
+    const tipoCostoMapeado = MAPEO_CATEGORIA_TIPO_COSTO[gasto.categoriaGasto];
+    
+    setFormData(prev => ({
+      ...prev,
+      descripcion: gasto.nombre,
+      tipoCosto: tipoCostoMapeado, // Autocompletar el tipoCosto
+      catalogoGastoId: gasto._id // Guardar el ID para rastrear el origen
+    }));
+    
+    // Marcar que el tipoCosto fue autocompletado
+    setTipoCostoAutocompletado(true);
+    
+    setMostrarCatalogo(false);
+    setBusquedaCatalogo('');
+  };
+
+  // Manejar gasto creado exitosamente
+  const handleGastoCreado = () => {
+    setMostrarCrearGasto(false);
+    
+    // Recargar el catálogo para incluir el nuevo gasto
+    const recargarCatalogo = async () => {
+      try {
+        const response = await obtenerCatalogoGastos({
+          page: 1,
+          limit: 100,
+          estado: EstadoGasto.ACTIVO
+        });
+        setCatalogoGastos(response.data.gastos || []);
+      } catch (error) {
+        console.error('Error recargando catálogo:', error);
+      }
+    };
+    
+    recargarCatalogo();
+  };
+
+  // Cerrar modal de crear gasto
+  const handleCerrarCrearGasto = () => {
+    setMostrarCrearGasto(false);
+  };
 
   // Validar formulario
   const validarFormulario = (): boolean => {
@@ -107,9 +218,10 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
     if (formData.observaciones && formData.observaciones.length > 500) {
       newErrors.observaciones = 'Las observaciones no pueden exceder 500 caracteres';
     }
-
+    
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const isValid = Object.keys(newErrors).length === 0;
+    return isValid;
   };
 
   // Manejar cambios en el formulario
@@ -126,9 +238,31 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
           // Para ENTRADA, eliminar campos de SALIDA
           delete newData.categoria;
           delete newData.tipoCosto;
+          delete newData.catalogoGastoId;
         } else if (value === TipoMovimiento.SALIDA) {
           // Para SALIDA, eliminar campos de ENTRADA
           delete newData.categoriaIngreso;
+          // Autocompletar tipoCosto basado en la categoría por defecto
+          if (newData.categoria) {
+            newData.tipoCosto = autocompletarTipoCosto(newData.categoria);
+          }
+        }
+      }
+
+      // Si se cambia la categoría para salidas, autocompletar tipoCosto
+      if (field === 'categoria' && formData.tipoMovimiento === TipoMovimiento.SALIDA) {
+        newData.tipoCosto = autocompletarTipoCosto(value as CategoriaCaja);
+        // Limpiar autocompletado del catálogo
+        setTipoCostoAutocompletado(false);
+      }
+
+      // Si se edita la descripción manualmente, limpiar la referencia al catálogo
+      if (field === 'descripcion') {
+        delete newData.catalogoGastoId;
+        // También limpiar el autocompletado del tipoCosto y volver a autocompletar según categoría
+        setTipoCostoAutocompletado(false);
+        if (newData.categoria) {
+          newData.tipoCosto = autocompletarTipoCosto(newData.categoria);
         }
       }
 
@@ -148,7 +282,7 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
   // Manejar envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!validarFormulario()) {
       return;
     }
@@ -187,9 +321,11 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         if (formData.tipoCosto) {
           datosEnvio.tipoCosto = formData.tipoCosto;
         }
+        // Agregar referencia al catálogo si existe
+        if (formData.catalogoGastoId) {
+          datosEnvio.catalogoGastoId = formData.catalogoGastoId;
+        }
       }
-
-      console.log('Datos a enviar:', datosEnvio);
 
       const response = await api.post('/caja', datosEnvio);
       
@@ -200,7 +336,6 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         alert('Error al crear movimiento');
       }
     } catch (error: any) {
-      console.error('Error creando movimiento:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Error al crear movimiento';
       alert(errorMessage);
     } finally {
@@ -212,6 +347,12 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
   const limpiarFormulario = () => {
     setFormData(getDefaultValues());
     setErrors({});
+    // Limpiar también estados del catálogo
+    setMostrarCatalogo(false);
+    setBusquedaCatalogo('');
+    setMostrarCrearGasto(false);
+    // Resetear el autocompletado
+    setTipoCostoAutocompletado(false);
   };
 
   const getPlaceholderTexto = (campo: string) => {
@@ -380,11 +521,15 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tipo de Costo <span className="text-red-500">*</span>
+                  <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                    {tipoCostoAutocompletado ? 'Del catálogo' : 'Autocompletado'}
+                  </span>
                 </label>
                 <select
                   value={formData.tipoCosto || ''}
-                  onChange={(e) => handleChange('tipoCosto', e.target.value as TipoCosto)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={true} // Siempre readonly
+                  className="w-full p-3 border bg-gray-100 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                  title="Este campo se autocompleta automáticamente según la categoría o selección del catálogo"
                 >
                   {OPCIONES_TIPO_COSTO.map(opcion => (
                     <option key={opcion.value} value={opcion.value}>
@@ -392,6 +537,9 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
                     </option>
                   ))}
                 </select>
+                <p className="text-xs text-gray-600 mt-1">
+                  💡 Este campo se autocompleta según {tipoCostoAutocompletado ? 'el gasto seleccionado del catálogo' : 'la categoría elegida'}
+                </p>
               </div>
             </>
           )}
@@ -417,9 +565,83 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
 
         {/* Descripción */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Descripción <span className="text-red-500">*</span>
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Descripción <span className="text-red-500">*</span>
+            </label>
+            {formData.tipoMovimiento === TipoMovimiento.SALIDA && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMostrarCatalogo(!mostrarCatalogo)}
+                  className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600 transition-colors"
+                >
+                  📋 Catálogo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMostrarCrearGasto(true)}
+                  className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition-colors"
+                >
+                  ➕ Crear Gasto
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {/* Dropdown del catálogo */}
+          {mostrarCatalogo && formData.tipoMovimiento === TipoMovimiento.SALIDA && (
+            <div className="mb-3 p-3 border border-gray-200 rounded-lg bg-gray-50">
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder="Buscar gasto en catálogo..."
+                  value={busquedaCatalogo}
+                  onChange={(e) => setBusquedaCatalogo(e.target.value)}
+                  className="w-full p-2 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {gastosFiltrados.length > 0 ? (
+                  gastosFiltrados.slice(0, 10).map((gasto) => {
+                    const tipoCostoQueSeAsignara = MAPEO_CATEGORIA_TIPO_COSTO[gasto.categoriaGasto];
+                    return (
+                      <button
+                        key={gasto._id}
+                        type="button"
+                        onClick={() => seleccionarGastoCatalogo(gasto)}
+                        className="w-full text-left p-3 text-sm hover:bg-blue-50 rounded transition-colors border-b border-gray-200 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">{gasto.nombre}</div>
+                        {gasto.descripcion && (
+                          <div className="text-gray-500 text-xs truncate mb-1">{gasto.descripcion}</div>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                            {tipoCostoQueSeAsignara === 'mano_obra' ? 'Mano de Obra' : 
+                             tipoCostoQueSeAsignara === 'materia_prima' ? 'Materia Prima' : 
+                             'Otros Gastos'}
+                          </span>
+                          {gasto.montoEstimado && (
+                            <span className="text-xs text-gray-600">
+                              ~S/ {gasto.montoEstimado.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-3">
+                    <p className="text-sm text-gray-500">
+                      {busquedaCatalogo ? 'No se encontraron gastos' : 'No hay gastos en el catálogo'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <textarea
             value={formData.descripcion}
             onChange={(e) => handleChange('descripcion', e.target.value)}
@@ -430,7 +652,14 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
             }`}
           />
           <div className="flex justify-between mt-1">
-            {errors.descripcion && <p className="text-sm text-red-500">{errors.descripcion}</p>}
+            <div className="flex flex-col">
+              {errors.descripcion && <p className="text-sm text-red-500">{errors.descripcion}</p>}
+              {formData.catalogoGastoId && (
+                <p className="text-xs text-green-600 mt-1">
+                  ✅ Descripción seleccionada del catálogo - Tipo de costo autocompletado
+                </p>
+              )}
+            </div>
             <p className="text-sm text-gray-500">{formData.descripcion.length}/200</p>
           </div>
         </div>
@@ -510,6 +739,38 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
       </form>
         </div>
       </div>
+
+      {/* Modal para crear nuevo gasto */}
+      {mostrarCrearGasto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  ➕ Crear Nuevo Gasto
+                </h3>
+                <button
+                  onClick={handleCerrarCrearGasto}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <FormularioCatalogo
+                onSuccess={handleGastoCreado}
+                onCancel={handleCerrarCrearGasto}
+                esModalAnidado={true}
+                modoCompacto={true}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

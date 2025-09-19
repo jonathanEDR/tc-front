@@ -1,0 +1,458 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import { 
+  PeriodoGrafico, 
+  DatosGraficoCaja, 
+  ConfiguracionGrafico,
+  CONFIGURACION_PERIODOS,
+  COLORES_CATEGORIAS 
+} from '../../types/graficos';
+import { TipoCosto, IMovimientoCaja, IFiltrosCaja, TipoMovimiento } from '../../types/caja';
+import { obtenerMovimientos } from '../../utils/cajaApi';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+// Función helper para formatear soles peruanos
+const formatearSoles = (monto: number): string => {
+  return new Intl.NumberFormat('es-PE', {
+    style: 'currency',
+    currency: 'PEN',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(monto);
+};
+
+interface Props {
+  className?: string;
+}
+
+const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
+  const [configuracion, setConfiguracion] = useState<ConfiguracionGrafico>({
+    periodoSeleccionado: PeriodoGrafico.SEMANA,
+    loading: true,
+    error: null
+  });
+  
+  const [datosOriginales, setDatosOriginales] = useState<IMovimientoCaja[]>([]);
+
+  // Calcular fechas según el período seleccionado
+  const fechasPeriodo = useMemo(() => {
+    const ahora = new Date();
+    let fechaInicio: Date;
+    let fechaFin: Date = new Date(ahora);
+
+    switch (configuracion.periodoSeleccionado) {
+      case PeriodoGrafico.HOY:
+        fechaInicio = new Date(ahora);
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin.setHours(23, 59, 59, 999);
+        break;
+
+      case PeriodoGrafico.SEMANA:
+        // MODIFICADO: Buscar datos de prueba de 2024 
+        fechaInicio = new Date('2024-09-15');
+        fechaFin = new Date('2024-09-21');
+        break;
+
+      case PeriodoGrafico.MES:
+        // MODIFICADO: Buscar todo el mes de septiembre 2024
+        fechaInicio = new Date('2024-09-01');
+        fechaFin = new Date('2024-09-30');
+        break;
+
+      case PeriodoGrafico.ANUAL:
+        // MODIFICADO: Buscar todo el año 2024
+        fechaInicio = new Date('2024-01-01');
+        fechaFin = new Date('2024-12-31');
+        break;
+
+      default:
+        fechaInicio = new Date(ahora);
+        fechaInicio.setDate(ahora.getDate() - 7);
+    }
+
+    console.log('🔍 DEBUGGING - Fechas calculadas:', {
+      periodo: configuracion.periodoSeleccionado,
+      fechaInicio: fechaInicio.toISOString(),
+      fechaFin: fechaFin.toISOString()
+    });
+
+    return { fechaInicio, fechaFin };
+  }, [configuracion.periodoSeleccionado]);
+
+  // Cargar datos del API
+  useEffect(() => {
+    cargarDatos();
+  }, [fechasPeriodo]);
+
+  const cargarDatos = async () => {
+    try {
+      setConfiguracion(prev => ({ ...prev, loading: true, error: null }));
+
+      // Preparar filtros para la API
+      const filtros: IFiltrosCaja = {
+        tipoMovimiento: TipoMovimiento.SALIDA,
+        fechaInicio: fechasPeriodo.fechaInicio.toISOString().split('T')[0],
+        fechaFin: fechasPeriodo.fechaFin.toISOString().split('T')[0],
+        limit: 1000 // Obtener todos los registros para el gráfico
+      };
+
+      const response = await obtenerMovimientos(filtros);
+      const movimientos = response.data?.movimientos || [];
+      
+      console.log('🔍 DEBUGGING - API Response completa:', response);
+      console.log('🔍 DEBUGGING - Movimientos obtenidos:', movimientos);
+      console.log('🔍 DEBUGGING - Cantidad de movimientos:', movimientos.length);
+      
+      setDatosOriginales(movimientos);
+    } catch (err) {
+      setConfiguracion(prev => ({ 
+        ...prev, 
+        error: 'Error al cargar los datos del gráfico' 
+      }));
+      console.error('Error cargando datos del gráfico:', err);
+    } finally {
+      setConfiguracion(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // Función para generar períodos completos según el tipo seleccionado
+  const generarPeriodosCompletos = (periodo: PeriodoGrafico, fechas: { fechaInicio: Date; fechaFin: Date }): DatosGraficoCaja[] => {
+    const periodos: DatosGraficoCaja[] = [];
+
+    switch (periodo) {
+      case PeriodoGrafico.HOY:
+        // Generar 24 horas
+        for (let hora = 0; hora < 24; hora++) {
+          const horaFormateada = hora.toString().padStart(2, '0') + ':00';
+          periodos.push({
+            periodo: horaFormateada,
+            fechaCompleta: new Date(fechas.fechaInicio.getTime() + hora * 60 * 60 * 1000).toISOString(),
+            manoObra: 0,
+            materiaPrima: 0,
+            otrosGastos: 0
+          });
+        }
+        break;
+
+      case PeriodoGrafico.SEMANA:
+        // Generar 7 días de la semana
+        const diasSemana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+        for (let i = 0; i < 7; i++) {
+          const fechaDia = new Date(fechas.fechaInicio);
+          fechaDia.setDate(fechas.fechaInicio.getDate() + i);
+          periodos.push({
+            periodo: diasSemana[i],
+            fechaCompleta: fechaDia.toISOString(),
+            manoObra: 0,
+            materiaPrima: 0,
+            otrosGastos: 0
+          });
+        }
+        break;
+
+      case PeriodoGrafico.MES:
+        // Generar días del mes
+        const ultimoDiaDelMes = new Date(fechas.fechaFin.getFullYear(), fechas.fechaFin.getMonth() + 1, 0).getDate();
+        for (let dia = 1; dia <= ultimoDiaDelMes; dia++) {
+          const fechaDia = new Date(fechas.fechaInicio.getFullYear(), fechas.fechaInicio.getMonth(), dia);
+          periodos.push({
+            periodo: dia.toString(),
+            fechaCompleta: fechaDia.toISOString(),
+            manoObra: 0,
+            materiaPrima: 0,
+            otrosGastos: 0
+          });
+        }
+        break;
+
+      case PeriodoGrafico.ANUAL:
+        // Generar 12 meses
+        const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        for (let mes = 0; mes < 12; mes++) {
+          const fechaMes = new Date(fechas.fechaInicio.getFullYear(), mes, 1);
+          periodos.push({
+            periodo: meses[mes],
+            fechaCompleta: fechaMes.toISOString(),
+            manoObra: 0,
+            materiaPrima: 0,
+            otrosGastos: 0
+          });
+        }
+        break;
+    }
+
+    return periodos;
+  };
+
+  // Procesar datos según el período seleccionado
+  const datosGrafico = useMemo(() => {
+    // Primero generar la estructura completa de períodos
+    const periodosCompletos = generarPeriodosCompletos(configuracion.periodoSeleccionado, fechasPeriodo);
+    
+    // Luego llenar con datos reales
+    console.log('🔍 DEBUGGING - datosOriginales:', datosOriginales);
+    console.log('🔍 DEBUGGING - periodosCompletos inicial:', periodosCompletos);
+    
+    datosOriginales.forEach((movimiento, index) => {
+      console.log(`🔍 DEBUGGING - Movimiento ${index}:`, {
+        fechaCaja: movimiento.fechaCaja,
+        tipoCosto: movimiento.tipoCosto,
+        monto: movimiento.monto,
+        descripcion: movimiento.descripcion
+      });
+      
+      const fecha = new Date(movimiento.fechaCaja);
+      let claveGrupo: string;
+
+      switch (configuracion.periodoSeleccionado) {
+        case PeriodoGrafico.HOY:
+          const hora = fecha.getHours();
+          claveGrupo = hora.toString().padStart(2, '0') + ':00';
+          break;
+
+        case PeriodoGrafico.SEMANA:
+          const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+          claveGrupo = diasSemana[fecha.getDay()];
+          console.log(`🔍 DEBUGGING - Fecha: ${fecha.toISOString()}, Día de semana: ${fecha.getDay()}, Clave: ${claveGrupo}`);
+          break;
+
+        case PeriodoGrafico.MES:
+          claveGrupo = fecha.getDate().toString();
+          break;
+
+        case PeriodoGrafico.ANUAL:
+          const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+          claveGrupo = meses[fecha.getMonth()];
+          break;
+
+        default:
+          claveGrupo = fecha.toISOString().split('T')[0];
+      }
+
+      console.log(`🔍 DEBUGGING - claveGrupo calculada: ${claveGrupo}`);
+
+      // Buscar el período correspondiente y agregar datos
+      const periodoEncontrado = periodosCompletos.find(p => p.periodo === claveGrupo);
+      console.log(`🔍 DEBUGGING - periodoEncontrado:`, periodoEncontrado);
+      
+      if (periodoEncontrado) {
+        const monto = movimiento.monto || 0;
+        console.log(`🔍 DEBUGGING - Procesando monto: ${monto} para tipoCosto: "${movimiento.tipoCosto}"`);
+        console.log(`🔍 DEBUGGING - Comparaciones:`);
+        console.log(`  - tipoCosto === TipoCosto.MANO_OBRA: ${movimiento.tipoCosto === TipoCosto.MANO_OBRA}`);
+        console.log(`  - tipoCosto === TipoCosto.MATERIA_PRIMA: ${movimiento.tipoCosto === TipoCosto.MATERIA_PRIMA}`);
+        console.log(`  - tipoCosto === TipoCosto.OTROS_GASTOS: ${movimiento.tipoCosto === TipoCosto.OTROS_GASTOS}`);
+        console.log(`  - TipoCosto enum values:`, TipoCosto);
+
+        const tipoCostoLimpio = String(movimiento.tipoCosto).toLowerCase().trim();
+        
+        switch (tipoCostoLimpio) {
+          case TipoCosto.MANO_OBRA:
+          case 'mano_obra':
+            periodoEncontrado.manoObra += monto;
+            console.log(`🔍 DEBUGGING - Agregado a manoObra: ${monto}, total: ${periodoEncontrado.manoObra}`);
+            break;
+          case TipoCosto.MATERIA_PRIMA:
+          case 'materia_prima':
+            periodoEncontrado.materiaPrima += monto;
+            console.log(`🔍 DEBUGGING - Agregado a materiaPrima: ${monto}, total: ${periodoEncontrado.materiaPrima}`);
+            break;
+          case TipoCosto.OTROS_GASTOS:
+          case 'otros_gastos':
+            periodoEncontrado.otrosGastos += monto;
+            console.log(`🔍 DEBUGGING - Agregado a otrosGastos: ${monto}, total: ${periodoEncontrado.otrosGastos}`);
+            break;
+          default:
+            console.log(`🔍 DEBUGGING - tipoCosto no reconocido: "${movimiento.tipoCosto}" (limpio: "${tipoCostoLimpio}")`);
+        }
+      } else {
+        console.log(`🔍 DEBUGGING - No se encontró período para claveGrupo: ${claveGrupo}`);
+      }
+    });
+
+    console.log('🔍 DEBUGGING - periodosCompletos final:', periodosCompletos);
+
+    return periodosCompletos;
+  }, [datosOriginales, configuracion.periodoSeleccionado, fechasPeriodo]);
+
+  // Configuración del gráfico Chart.js
+  const chartData = {
+    labels: datosGrafico.map(d => d.periodo),
+    datasets: [
+      {
+        label: COLORES_CATEGORIAS.manoObra.label,
+        data: datosGrafico.map(d => d.manoObra),
+        borderColor: COLORES_CATEGORIAS.manoObra.border,
+        backgroundColor: COLORES_CATEGORIAS.manoObra.background,
+        tension: 0.1,
+        fill: false,
+      },
+      {
+        label: COLORES_CATEGORIAS.materiaPrima.label,
+        data: datosGrafico.map(d => d.materiaPrima),
+        borderColor: COLORES_CATEGORIAS.materiaPrima.border,
+        backgroundColor: COLORES_CATEGORIAS.materiaPrima.background,
+        tension: 0.1,
+        fill: false,
+      },
+      {
+        label: COLORES_CATEGORIAS.otrosGastos.label,
+        data: datosGrafico.map(d => d.otrosGastos),
+        borderColor: COLORES_CATEGORIAS.otrosGastos.border,
+        backgroundColor: COLORES_CATEGORIAS.otrosGastos.background,
+        tension: 0.1,
+        fill: false,
+      },
+    ],
+  };
+
+  const chartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: `Gastos por Categoría - ${CONFIGURACION_PERIODOS[configuracion.periodoSeleccionado].label}`,
+      },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+        callbacks: {
+          label: function(context) {
+            return `${context.dataset.label}: ${formatearSoles(context.parsed.y)}`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        display: true,
+        title: {
+          display: true,
+          text: 'Período'
+        }
+      },
+      y: {
+        display: true,
+        title: {
+          display: true,
+          text: 'Soles (S/)'
+        },
+        ticks: {
+          callback: function(value) {
+            return formatearSoles(Number(value));
+          }
+        }
+      }
+    },
+    interaction: {
+      mode: 'nearest',
+      axis: 'x',
+      intersect: false,
+    },
+  };
+
+  // Manejar cambio de período
+  const handleCambioPeriodo = (nuevoPeriodo: PeriodoGrafico) => {
+    setConfiguracion(prev => ({
+      ...prev,
+      periodoSeleccionado: nuevoPeriodo
+    }));
+  };
+
+  // Render del componente
+  if (configuracion.loading) {
+    return (
+      <div className={`flex items-center justify-center h-96 ${className}`}>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <span className="mt-2 text-gray-600">Cargando gráfico...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (configuracion.error) {
+    return (
+      <div className={`flex items-center justify-center h-96 ${className}`}>
+        <div className="text-center">
+          <div className="text-red-500 text-2xl mb-2">⚠️</div>
+          <p className="text-red-600 mb-4">{configuracion.error}</p>
+          <button
+            onClick={cargarDatos}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`w-full ${className}`}>
+      {/* Selector de Período */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-800 mb-3">
+          📊 Control de Gastos por Categoría
+        </h3>
+        
+        <div className="flex flex-wrap gap-2">
+          {Object.values(PeriodoGrafico).map((periodo) => (
+            <button
+              key={periodo}
+              onClick={() => handleCambioPeriodo(periodo)}
+              className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                configuracion.periodoSeleccionado === periodo
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {CONFIGURACION_PERIODOS[periodo].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Gráfico */}
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        {datosGrafico.length === 0 ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center text-gray-500">
+              <div className="text-4xl mb-2">📊</div>
+              <p>No hay datos disponibles para el período seleccionado</p>
+            </div>
+          </div>
+        ) : (
+          <Line data={chartData} options={chartOptions} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default GraficoCajaLineal;

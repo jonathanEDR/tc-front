@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 // VITE_API_BASE_URL can be used to point to a remote backend, otherwise
 // the dev server will proxy /api to http://localhost:5000 by default.
@@ -7,6 +8,11 @@ const backend = process.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     port: 5173,
     proxy: {

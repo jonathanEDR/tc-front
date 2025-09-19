@@ -48,6 +48,8 @@ export interface IMovimientoCaja {
   tipoCosto?: TipoCosto;
   // Para ingresos
   categoriaIngreso?: CategoriaIngreso;
+  // Referencia al catálogo de gastos (para salidas que provienen del catálogo)
+  catalogoGastoId?: string;
   // Método de pago (para ambos)
   metodoPago: MetodoPago;
   usuario?: {
@@ -72,6 +74,8 @@ export interface IFormularioMovimiento {
   tipoCosto?: TipoCosto;
   // Para ingresos
   categoriaIngreso?: CategoriaIngreso;
+  // Referencia al catálogo de gastos (para salidas que provienen del catálogo)
+  catalogoGastoId?: string;
   // Método de pago (para ambos)
   metodoPago: MetodoPago;
   comprobante?: string;
