@@ -8,7 +8,6 @@ import TablaMovimientosMobile from '../components/caja/TablaMovimientosMobile';
 import ResumenCards from '../components/caja/ResumenCards';
 import FiltrosCaja from '../components/caja/FiltrosCaja';
 import Paginacion from '../components/caja/Paginacion';
-import GraficoCajaLineal from '../components/graficos/GraficoCajaLineal';
 import { DateTimeDisplay } from '../components/common/DateTimeComponents';
 import { useIsMobile } from '../hooks/useResponsive';
 
@@ -124,12 +123,6 @@ const Caja: React.FC = () => {
           totalMovimientos={totalItems}
           loading={loading}
         />
-
-        {/* Gráfico */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h3 className="text-lg font-semibold mb-4">Evolución de Caja</h3>
-          <GraficoCajaLineal />
-        </div>
 
         {/* Filtros */}
         <FiltrosCaja

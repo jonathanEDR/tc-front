@@ -38,6 +38,33 @@ const formatearPorcentaje = (porcentaje: number): string => {
   return `${porcentaje.toFixed(1)}%`;
 };
 
+// Función helper para obtener fechas de fallback si no hay datos
+const obtenerFechasFallback = (periodo: PeriodoGrafico): { fechaInicio: Date; fechaFin: Date } => {
+  // Si no hay datos en el período actual, usar septiembre 2025 donde sabemos que hay datos
+  switch (periodo) {
+    case PeriodoGrafico.SEMANA:
+      return {
+        fechaInicio: new Date('2025-09-14'),
+        fechaFin: new Date('2025-09-20')
+      };
+    case PeriodoGrafico.MES:
+      return {
+        fechaInicio: new Date('2025-09-01'),
+        fechaFin: new Date('2025-09-30')
+      };
+    case PeriodoGrafico.ANUAL:
+      return {
+        fechaInicio: new Date('2025-01-01'),
+        fechaFin: new Date('2025-12-31')
+      };
+    default:
+      return {
+        fechaInicio: new Date('2025-09-14'),
+        fechaFin: new Date('2025-09-20')
+      };
+  }
+};
+
 interface Props {
   className?: string;
   periodo?: PeriodoGrafico;
@@ -64,48 +91,73 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
   const [periodoSeleccionado, setPeriodoSeleccionado] = useState<PeriodoGrafico>(periodo);
   const [datosOriginales, setDatosOriginales] = useState<IMovimientoCaja[]>([]);
 
-  // Calcular fechas según el período seleccionado
+  // Calcular fechas según el período seleccionado - DINÁMICO
   const fechasPeriodo = useMemo(() => {
     const ahora = new Date();
     let fechaInicio: Date;
-    let fechaFin: Date = new Date(ahora);
+    let fechaFin: Date;
 
     switch (periodoSeleccionado) {
       case PeriodoGrafico.HOY:
+        // Desde las 00:00 hasta las 23:59 de hoy
         fechaInicio = new Date(ahora);
         fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin = new Date(ahora);
         fechaFin.setHours(23, 59, 59, 999);
         break;
 
       case PeriodoGrafico.SEMANA:
-        // MODIFICADO: Buscar datos de prueba de 2024 
-        fechaInicio = new Date('2024-09-15');
-        fechaFin = new Date('2024-09-21');
+        // Últimos 7 días desde hoy
+        fechaInicio = new Date(ahora);
+        fechaInicio.setDate(ahora.getDate() - 6); // 6 días atrás + hoy = 7 días
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin = new Date(ahora);
+        fechaFin.setHours(23, 59, 59, 999);
         break;
 
       case PeriodoGrafico.MES:
-        // MODIFICADO: Buscar todo el mes de septiembre 2024
-        fechaInicio = new Date('2024-09-01');
-        fechaFin = new Date('2024-09-30');
+        // Todo el mes actual
+        fechaInicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
+        fechaFin.setHours(23, 59, 59, 999);
         break;
 
       case PeriodoGrafico.ANUAL:
-        // MODIFICADO: Buscar todo el año 2024
-        fechaInicio = new Date('2024-01-01');
-        fechaFin = new Date('2024-12-31');
+        // Todo el año actual
+        fechaInicio = new Date(ahora.getFullYear(), 0, 1);
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin = new Date(ahora.getFullYear(), 11, 31);
+        fechaFin.setHours(23, 59, 59, 999);
         break;
 
       default:
+        // Fallback: últimos 7 días
         fechaInicio = new Date(ahora);
-        fechaInicio.setDate(ahora.getDate() - 7);
+        fechaInicio.setDate(ahora.getDate() - 6);
+        fechaInicio.setHours(0, 0, 0, 0);
+        fechaFin = new Date(ahora);
+        fechaFin.setHours(23, 59, 59, 999);
     }
+
+    console.log(`📅 DISTRIBUCIÓN - Fechas dinámicas [${periodoSeleccionado}]:`, {
+      fechaInicio: fechaInicio.toISOString(),
+      fechaFin: fechaFin.toISOString(),
+      añoActual: ahora.getFullYear(),
+      mesActual: ahora.getMonth() + 1
+    });
 
     return { fechaInicio, fechaFin };
   }, [periodoSeleccionado]);
 
   // Cargar datos del API
   useEffect(() => {
-    cargarDatos();
+    // Delay de 500ms para evitar peticiones simultáneas
+    const timer = setTimeout(() => {
+      cargarDatos();
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [fechasPeriodo]);
 
   const cargarDatos = async () => {
@@ -120,8 +172,26 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
         limit: 1000 // Obtener todos los registros para el gráfico
       };
 
-      const response = await obtenerMovimientos(filtros);
-      const movimientos = response.data?.movimientos || [];
+      let response = await obtenerMovimientos(filtros);
+      let movimientos = response.data?.movimientos || [];
+      
+      // Si no hay datos en el período actual, usar fechas de fallback
+      if (movimientos.length === 0) {
+        console.log('🔄 No hay datos en el período actual, usando fechas de fallback...');
+        const fechasFallback = obtenerFechasFallback(periodoSeleccionado);
+        
+        const filtrosFallback: IFiltrosCaja = {
+          tipoMovimiento: TipoMovimiento.SALIDA,
+          fechaInicio: fechasFallback.fechaInicio.toISOString().split('T')[0],
+          fechaFin: fechasFallback.fechaFin.toISOString().split('T')[0],
+          limit: 1000
+        };
+
+        response = await obtenerMovimientos(filtrosFallback);
+        movimientos = response.data?.movimientos || [];
+        
+        console.log('📊 Datos de fallback obtenidos:', movimientos.length, 'movimientos');
+      }
       
       setDatosOriginales(movimientos);
     } catch (err) {

@@ -10,23 +10,19 @@ const GraphCarousel: React.FC<GraphCarouselProps> = ({ children, className = "" 
 
   const nextSlide = () => {
     const newIndex = (currentIndex + 1) % children.length;
-    console.log('🎠 CAROUSEL - Next slide:', { currentIndex, newIndex, totalChildren: children.length });
     setCurrentIndex(newIndex);
   };
 
   const prevSlide = () => {
     const newIndex = (currentIndex - 1 + children.length) % children.length;
-    console.log('🎠 CAROUSEL - Prev slide:', { currentIndex, newIndex, totalChildren: children.length });
     setCurrentIndex(newIndex);
   };
 
   const goToSlide = (index: number) => {
-    console.log('🎠 CAROUSEL - Go to slide:', { currentIndex, targetIndex: index });
     setCurrentIndex(index);
   };
 
-  // Debug log para ver el estado actual
-  console.log('🎠 CAROUSEL - Current state:', { currentIndex, childrenCount: children.length });
+
 
   return (
     <div className={`relative ${className}`}>

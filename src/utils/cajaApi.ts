@@ -1,13 +1,13 @@
 /// <reference types="vite/client" />
 import axios from 'axios';
 import { 
-  IMovimientoCaja, 
   IFormularioMovimiento, 
   IFiltrosCaja, 
   IResponseCaja, 
   IResponseMovimiento,
   IResumenReporte 
 } from '../types/caja';
+import { apiThrottle } from './apiThrottle';
 
 // Configurar base URL para las API calls
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -53,6 +53,16 @@ export const crearMovimiento = async (datos: IFormularioMovimiento): Promise<IRe
 
 // Obtener lista de movimientos con filtros
 export const obtenerMovimientos = async (filtros: IFiltrosCaja = {}): Promise<IResponseCaja> => {
+  // Aplicar throttling para evitar demasiadas peticiones simultáneas
+  const endpoint = '/caja';
+  const delay = apiThrottle.getDelay(endpoint);
+  
+  if (delay > 0) {
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  
+  await apiThrottle.waitForSlot(endpoint);
+
   const params = new URLSearchParams();
   
   Object.entries(filtros).forEach(([key, value]) => {

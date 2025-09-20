@@ -17,6 +17,8 @@ import { DistribucionGastosPreview, RankingGastosPreview } from './GraphPreviews
 import GraficoCajaLineal from '../graficos/GraficoCajaLineal';
 import GraficoDistribucionGastos from '../graficos/GraficoDistribucionGastos';
 import GraficoRankingGastos from '../graficos/GraficoRankingGastos';
+import { useDashboardMetrics } from '../../hooks/useDashboardMetrics';
+import { useActividadReciente } from '../../hooks/useActividadReciente';
 
 const DashboardHome: React.FC = () => {
   return (
@@ -29,14 +31,20 @@ const DashboardHome: React.FC = () => {
 const DashboardContent: React.FC = () => {
   const navigate = useNavigate();
   const { abrirModal, cerrarModal, estaAbierto } = useGraphModal();
+  
+  // Hooks para datos reales
+  const { metricas, loading: loadingMetricas } = useDashboardMetrics();
+  const { actividades, loading: loadingActividades, error: errorActividades } = useActividadReciente(5);
 
-  // Mock data - esto se reemplazará con datos reales de la API
-  const mockMetrics = {
-    balance: 3354.70,
-    ingresos: 5471.25,
-    gastos: 2116.55,
-    transacciones: 10
-  };
+  if (loadingMetricas) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg text-gray-600">Cargando métricas del dashboard...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -55,7 +63,7 @@ const DashboardContent: React.FC = () => {
         <MetricsGrid>
           <MetricCard
             title="Balance Total"
-            value={`S/ ${mockMetrics.balance.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+            value={`S/ ${metricas.balance.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
             subtitle="Saldo actual"
             color="blue"
             icon={
@@ -63,12 +71,11 @@ const DashboardContent: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
             }
-            trend={{ value: 12.5, isPositive: true }}
           />
 
           <MetricCard
             title="Ingresos"
-            value={`S/ ${mockMetrics.ingresos.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+            value={`S/ ${metricas.ingresos.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
             subtitle="Este período"
             color="green"
             icon={
@@ -76,12 +83,11 @@ const DashboardContent: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
               </svg>
             }
-            trend={{ value: 8.3, isPositive: true }}
           />
 
           <MetricCard
             title="Gastos"
-            value={`S/ ${mockMetrics.gastos.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+            value={`S/ ${metricas.gastos.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
             subtitle="Este período"
             color="red"
             icon={
@@ -89,12 +95,11 @@ const DashboardContent: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
               </svg>
             }
-            trend={{ value: 3.2, isPositive: false }}
           />
 
           <MetricCard
             title="Transacciones"
-            value={mockMetrics.transacciones}
+            value={metricas.transacciones}
             subtitle="Total registros"
             color="amber"
             icon={
@@ -196,35 +201,32 @@ const DashboardContent: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             📱 Actividad Reciente
           </h2>
-          <div className="space-y-3">
-            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-green-500 rounded-full mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Bonificación por ventas registrada
-                </p>
-                <p className="text-xs text-gray-500">+S/ 420.80 • hace 2 horas</p>
-              </div>
+          {loadingActividades ? (
+            <div className="text-sm text-gray-500">Cargando actividades...</div>
+          ) : errorActividades ? (
+            <div className="text-sm text-red-500">Error al cargar actividades</div>
+          ) : actividades.length === 0 ? (
+            <div className="text-sm text-gray-500">No hay actividad reciente</div>
+          ) : (
+            <div className="space-y-3">
+              {actividades.map((actividad) => (
+                <div key={actividad._id} className="flex items-center p-3 bg-gray-50 rounded-lg">
+                  <div className={`w-2 h-2 rounded-full mr-3 ${
+                    actividad.color === 'green' ? 'bg-green-500' : 
+                    actividad.color === 'red' ? 'bg-red-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      {actividad.descripcion}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {actividad.tipo === 'ingreso' ? '+' : '-'}S/ {actividad.monto.toLocaleString('es-PE', { minimumFractionDigits: 2 })} • {actividad.fechaRelativa}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-red-500 rounded-full mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Material de oficina comprado
-                </p>
-                <p className="text-xs text-gray-500">-S/ 95.25 • hace 4 horas</p>
-              </div>
-            </div>
-            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mr-3" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">
-                  Balance del día actualizado
-                </p>
-                <p className="text-xs text-gray-500">S/ 3,354.70 • hace 6 horas</p>
-              </div>
-            </div>
-          </div>
+          )}
         </ActivitySection>
       </DashboardGrid>
 

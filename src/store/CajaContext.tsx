@@ -4,7 +4,8 @@ import {
   IMovimientoCaja,
   IFiltrosCaja,
   IResumenCaja,
-  CrearMovimientoData
+  IFormularioMovimiento,
+  TipoMovimiento
 } from '../types/caja';
 import { useFilterableState } from './AppStateContext';
 import { useApiWithAuth } from '../utils/useApiWithAuth';
@@ -48,7 +49,7 @@ interface CajaContextType {
   setShowIngresoForm: (show: boolean) => void;
   setShowSalidaForm: (show: boolean) => void;
   loadMovimientos: () => Promise<void>;
-  createMovimiento: (data: CrearMovimientoData) => Promise<boolean>;
+  createMovimiento: (data: IFormularioMovimiento) => Promise<boolean>;
   deleteMovimiento: (id: string) => Promise<boolean>;
   refreshData: () => Promise<void>;
 }
@@ -131,7 +132,7 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
   };
 
   // Crear movimiento
-  const createMovimiento = async (data: CrearMovimientoData): Promise<boolean> => {
+  const createMovimiento = async (data: IFormularioMovimiento): Promise<boolean> => {
     try {
       filterableActions.setProcessing(true);
 
@@ -146,7 +147,7 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
           resumen: response.resumen || prev.resumen
         }));
 
-        notifications.success(`${data.tipoMovimiento === 'ENTRADA' ? 'Ingreso' : 'Salida'} registrado exitosamente`);
+        notifications.success(`${data.tipoMovimiento === TipoMovimiento.ENTRADA ? 'Ingreso' : 'Salida'} registrado exitosamente`);
         return true;
       } else {
         notifications.error(response.message || 'Error al crear movimiento');

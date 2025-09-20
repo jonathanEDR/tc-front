@@ -220,14 +220,24 @@ export const CatalogoProvider: React.FC<CatalogoProviderProps> = ({ children }) 
   // Cargar datos automáticamente cuando cambian los filtros
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      loadCatalogo();
+      // Delay de 200ms para evitar peticiones simultáneas
+      const timer = setTimeout(() => {
+        loadCatalogo();
+      }, 200);
+
+      return () => clearTimeout(timer);
     }
   }, [isLoaded, isSignedIn, filterableState.filters, filterableState.currentPage]);
 
   // Cargar resumen al inicio
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      loadResumen();
+      // Delay de 300ms para evitar peticiones simultáneas
+      const timer = setTimeout(() => {
+        loadResumen();
+      }, 300);
+
+      return () => clearTimeout(timer);
     }
   }, [isLoaded, isSignedIn]);
 
