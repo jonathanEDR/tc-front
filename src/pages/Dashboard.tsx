@@ -19,14 +19,11 @@ export default function Dashboard() {
 
         // Obtener token de Clerk
         const token = await getToken();
-        // DEBUG: mostrar preview seguro del token para verificar su forma (no imprimir entero en prod)
-        try {
-          const preview = token ? `${String(token).slice(0, 12)}...${String(token).slice(-12)}` : token;
+
+        // Solo debug en desarrollo
+        if (import.meta.env.DEV) {
           const segments = token ? String(token).split('.')?.length : 0;
-          // eslint-disable-next-line no-console
-          console.log('[DEBUG] clerk token preview:', preview, 'segments:', segments);
-        } catch (e) {
-          // ignore
+          console.log('[DEBUG] Token format check - segments:', segments);
         }
         if (!token) {
           setError('No se pudo obtener el token de autenticación');

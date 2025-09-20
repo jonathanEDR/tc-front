@@ -96,57 +96,87 @@ export const DistribucionGastosPreview: React.FC<GraphPreviewProps> = ({ onClick
   );
 };
 
-export const IngresosGastosPreview: React.FC<GraphPreviewProps> = ({ onClick, className = "" }) => {
+export const RankingGastosPreview: React.FC<GraphPreviewProps> = ({ onClick, className = "" }) => {
   return (
     <div 
-      className={`w-full h-full bg-white rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 border border-gray-200 hover:border-purple-300 ${className}`}
+      className={`w-full h-full bg-white rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 border border-gray-200 hover:border-orange-300 ${className}`}
       onClick={onClick}
     >
       <div className="p-4 h-full flex flex-col">
         {/* Header del preview */}
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-gray-900">Ingresos vs Gastos</h3>
-            <p className="text-xs text-gray-500">Comparativo</p>
+            <h3 className="text-sm font-semibold text-gray-900">Ranking de Gastos</h3>
+            <p className="text-xs text-gray-500">Por descripción</p>
           </div>
-          <div className="text-purple-600">
+          <div className="text-orange-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
           </div>
         </div>
 
-        {/* Gráfico de barras simple */}
-        <div className="flex-1 flex items-end justify-center space-x-4">
-          {/* Ingresos */}
-          <div className="flex flex-col items-center">
-            <div className="w-6 bg-green-500 rounded-t" style={{ height: '60px' }}></div>
-            <span className="text-xs text-gray-600 mt-1">Ingresos</span>
-            <span className="text-xs font-semibold text-green-600">S/ 5.4K</span>
+        {/* Gráfico de barras horizontales simple */}
+        <div className="flex-1 flex flex-col justify-center space-y-2">
+          {/* Top 5 gastos simulados */}
+          <div className="flex items-center">
+            <div className="w-16 text-xs text-gray-600 truncate">Material A</div>
+            <div className="flex-1 mx-2">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-orange-500 h-2 rounded-full" style={{ width: '85%' }}></div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-700">S/ 850</div>
           </div>
           
-          {/* Gastos */}
-          <div className="flex flex-col items-center">
-            <div className="w-6 bg-red-500 rounded-t" style={{ height: '35px' }}></div>
-            <span className="text-xs text-gray-600 mt-1">Gastos</span>
-            <span className="text-xs font-semibold text-red-600">S/ 2.1K</span>
+          <div className="flex items-center">
+            <div className="w-16 text-xs text-gray-600 truncate">Suministros</div>
+            <div className="flex-1 mx-2">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full" style={{ width: '70%' }}></div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-700">S/ 700</div>
           </div>
 
-          {/* Balance */}
-          <div className="flex flex-col items-center">
-            <div className="w-6 bg-blue-500 rounded-t" style={{ height: '48px' }}></div>
-            <span className="text-xs text-gray-600 mt-1">Balance</span>
-            <span className="text-xs font-semibold text-blue-600">S/ 3.3K</span>
+          <div className="flex items-center">
+            <div className="w-16 text-xs text-gray-600 truncate">Servicios</div>
+            <div className="flex-1 mx-2">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-green-500 h-2 rounded-full" style={{ width: '60%' }}></div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-700">S/ 600</div>
+          </div>
+
+          <div className="flex items-center">
+            <div className="w-16 text-xs text-gray-600 truncate">Transporte</div>
+            <div className="flex-1 mx-2">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-purple-500 h-2 rounded-full" style={{ width: '45%' }}></div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-700">S/ 450</div>
+          </div>
+
+          <div className="flex items-center">
+            <div className="w-16 text-xs text-gray-600 truncate">Oficina</div>
+            <div className="flex-1 mx-2">
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div className="bg-red-500 h-2 rounded-full" style={{ width: '30%' }}></div>
+              </div>
+            </div>
+            <div className="text-xs font-semibold text-gray-700">S/ 300</div>
           </div>
         </div>
 
-        {/* Indicador de tendencia */}
+        {/* Estadística resumen */}
         <div className="mt-3 text-center">
-          <div className="flex items-center justify-center text-green-600">
+          <div className="flex items-center justify-center text-orange-600">
             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="text-xs font-semibold">+157% Balance positivo</span>
+            <span className="text-xs font-semibold">Top 10 gastos del período</span>
           </div>
         </div>
 

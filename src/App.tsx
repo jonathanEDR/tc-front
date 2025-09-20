@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { SignedIn, SignedOut, RedirectToSignIn } from '@clerk/clerk-react';
+import { Toaster } from 'react-hot-toast';
+import { StoreProvider } from './store/StoreProvider';
 import Home from './pages/Home';
 import SignInPage from './components/auth/SignInPage';
 import SignUpPage from './components/auth/SignUpPage';
@@ -14,7 +16,52 @@ import CatalogoServicios from './pages/CatalogoServicios';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <StoreProvider>
+      {/* Configuración global de notificaciones */}
+      <Toaster
+        position="top-right"
+        reverseOrder={false}
+        gutter={8}
+        containerClassName=""
+        containerStyle={{}}
+        toastOptions={{
+          // Configuración por defecto para todos los toasts
+          className: '',
+          duration: 4000,
+          style: {
+            background: '#363636',
+            color: '#fff',
+            borderRadius: '8px',
+            fontSize: '14px',
+            padding: '12px 16px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            maxWidth: '500px',
+          },
+          // Configuraciones específicas por tipo
+          success: {
+            duration: 3000,
+            style: {
+              background: '#10B981',
+            },
+            iconTheme: {
+              primary: '#fff',
+              secondary: '#10B981',
+            },
+          },
+          error: {
+            duration: 5000,
+            style: {
+              background: '#EF4444',
+            },
+            iconTheme: {
+              primary: '#fff',
+              secondary: '#EF4444',
+            },
+          },
+        }}
+      />
+
+      <BrowserRouter>
       <Routes>
         {/* Página pública */}
         <Route path="/" element={<Home />} />
@@ -148,5 +195,6 @@ export default function App() {
         />
       </Routes>
     </BrowserRouter>
+    </StoreProvider>
   );
 }

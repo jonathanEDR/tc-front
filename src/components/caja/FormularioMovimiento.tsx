@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  IFormularioMovimiento, 
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import {
+  IFormularioMovimiento,
   TipoMovimiento,
   CategoriaCaja,
   CategoriaIngreso,
@@ -10,13 +10,15 @@ import {
   OPCIONES_CATEGORIA_INGRESO,
   OPCIONES_TIPO_COSTO,
   OPCIONES_METODO_PAGO,
-  OPCIONES_TIPO_MOVIMIENTO 
+  OPCIONES_TIPO_MOVIMIENTO
 } from '../../types/caja';
 import { ICatalogoGasto, EstadoGasto, CategoriaGasto } from '../../types/herramientas';
-import { useApiWithAuth } from '../../utils/useApiWithAuth';
 import { obtenerCatalogoGastos } from '../../utils/herramientasApi';
 import FormularioCatalogo from '../herramientas/FormularioCatalogo';
 import { dateUtils } from '../../utils/dateUtils';
+import { notifications } from '../../utils/notifications';
+import { useDoubleSubmitPrevention } from '../../hooks/useDoubleSubmitPrevention';
+import { useCaja } from '../../store/StoreProvider';
 
 // Mapeo de categorías de catálogo a tipos de costo de caja
 const MAPEO_CATEGORIA_TIPO_COSTO = {
@@ -35,23 +37,25 @@ const MAPEO_CATEGORIA_CAJA_TIPO_COSTO = {
 
 interface Props {
   tipoMovimiento?: TipoMovimiento; // Tipo predefinido opcional
-  onSuccess: () => void;
+  onSuccess: (data?: any) => void;
   onCancel: () => void;
 }
 
-const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoProp, onSuccess, onCancel }) => {
-  const api = useApiWithAuth();
-  
-  // Función para autocompletar tipoCosto basado en la categoría
-  const autocompletarTipoCosto = (categoria: CategoriaCaja): TipoCosto => {
+const FormularioMovimiento: React.FC<Props> = memo(({ tipoMovimiento: tipoMovimientoProp, onSuccess, onCancel }) => {
+  const { createMovimiento } = useCaja();
+
+  // ✅ Memoizar función de autocompletado
+  const autocompletarTipoCosto = useCallback((categoria: CategoriaCaja): TipoCosto => {
     return MAPEO_CATEGORIA_CAJA_TIPO_COSTO[categoria] || TipoCosto.OTROS_GASTOS;
-  };
+  }, []);
+
+  // ✅ Memoizar fecha inicial para evitar re-cálculos
+  const fechaInicial = useMemo(() => {
+    return dateUtils.input.getCurrentInputDateTime();
+  }, []);
   
-  // Generar fecha inicial solo una vez
-  const fechaInicial = dateUtils.input.getCurrentInputDateTime();
-  
-  // Valores por defecto según el tipo de movimiento
-  const getDefaultValues = (): IFormularioMovimiento => {
+  // ✅ Memoizar valores por defecto
+  const defaultValues = useMemo((): IFormularioMovimiento => {
     const baseDefaults = {
       fechaCaja: fechaInicial, // Usar la fecha fija generada una sola vez
       monto: '',
@@ -82,12 +86,15 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         tipoCosto: autocompletarTipoCosto(categoriaDefault)
       };
     }
-  };
+  }, [fechaInicial, tipoMovimientoProp, autocompletarTipoCosto]);
 
-  const [formData, setFormData] = useState<IFormularioMovimiento>(() => getDefaultValues());
+  const [formData, setFormData] = useState<IFormularioMovimiento>(() => defaultValues);
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Hook para prevenir double submit
+  const { preventDoubleSubmit } = useDoubleSubmitPrevention(2000);
   
   // Estados para el catálogo de gastos
   const [catalogoGastos, setCatalogoGastos] = useState<ICatalogoGasto[]>([]);
@@ -146,10 +153,10 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
     setBusquedaCatalogo('');
   };
 
-  // Manejar gasto creado exitosamente
-  const handleGastoCreado = () => {
+  // ✅ Memoizar handlers
+  const handleGastoCreado = useCallback(() => {
     setMostrarCrearGasto(false);
-    
+
     // Recargar el catálogo para incluir el nuevo gasto
     const recargarCatalogo = async () => {
       try {
@@ -163,14 +170,13 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         console.error('Error recargando catálogo:', error);
       }
     };
-    
-    recargarCatalogo();
-  };
 
-  // Cerrar modal de crear gasto
-  const handleCerrarCrearGasto = () => {
+    recargarCatalogo();
+  }, []);
+
+  const handleCerrarCrearGasto = useCallback(() => {
     setMostrarCrearGasto(false);
-  };
+  }, []);
 
   // Validar formulario
   const validarFormulario = (): boolean => {
@@ -224,8 +230,8 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
     return isValid;
   };
 
-  // Manejar cambios en el formulario
-  const handleChange = (field: keyof IFormularioMovimiento, value: any) => {
+  // ✅ Memoizar handleChange
+  const handleChange = useCallback((field: keyof IFormularioMovimiento, value: any) => {
     setFormData(prev => {
       const newData = {
         ...prev,
@@ -277,17 +283,16 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         return newErrors;
       });
     }
-  };
+  }, [errors, autocompletarTipoCosto, formData.tipoMovimiento]);
 
-  // Manejar envío del formulario
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  // ✅ Función interna de envío
+  const submitMovimiento = useCallback(async () => {
     if (!validarFormulario()) {
       return;
     }
 
     setLoading(true);
+
     try {
       // Preparar los datos limpios según el tipo de movimiento
       const datosBase = {
@@ -327,25 +332,37 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
         }
       }
 
-      const response = await api.post('/caja', datosEnvio);
-      
-      if (response.success) {
-        alert('Movimiento creado exitosamente');
+      // Usar el contexto en lugar de llamada directa a API
+      const success = await createMovimiento(datosEnvio);
+
+      if (success) {
+        notifications.success('Movimiento creado exitosamente');
         onSuccess();
-      } else {
-        alert('Error al crear movimiento');
       }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Error al crear movimiento';
-      alert(errorMessage);
+    } catch (error) {
+      console.error('[FormularioMovimiento] Error:', error);
+      notifications.error('Error al crear movimiento');
     } finally {
       setLoading(false);
     }
-  };
+  }, [createMovimiento, formData, onSuccess]);
 
-  // Limpiar formulario
-  const limpiarFormulario = () => {
-    setFormData(getDefaultValues());
+  // ✅ Memoizar handleSubmit con protección contra double submit
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Prevenir múltiples envíos
+    if (loading) {
+      console.warn('[FormularioMovimiento] Envío bloqueado: ya está en proceso');
+      return;
+    }
+    
+    await preventDoubleSubmit(submitMovimiento)();
+  }, [loading, preventDoubleSubmit, submitMovimiento]);
+
+  // ✅ Memoizar limpiarFormulario
+  const limpiarFormulario = useCallback(() => {
+    setFormData(defaultValues);
     setErrors({});
     // Limpiar también estados del catálogo
     setMostrarCatalogo(false);
@@ -353,7 +370,7 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
     setMostrarCrearGasto(false);
     // Resetear el autocompletado
     setTipoCostoAutocompletado(false);
-  };
+  }, [defaultValues]);
 
   const getPlaceholderTexto = (campo: string) => {
     if (!tipoMovimientoProp) return '';
@@ -773,6 +790,9 @@ const FormularioMovimiento: React.FC<Props> = ({ tipoMovimiento: tipoMovimientoP
       )}
     </div>
   );
-};
+});
+
+// Configurar displayName para debugging
+FormularioMovimiento.displayName = 'FormularioMovimiento';
 
 export default FormularioMovimiento;

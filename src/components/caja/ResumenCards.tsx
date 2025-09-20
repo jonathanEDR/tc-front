@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { IResumenCaja } from '../../types/caja';
 import { formatearMonto } from '../../utils/cajaApi';
 
@@ -8,7 +8,7 @@ interface Props {
   loading?: boolean;
 }
 
-const ResumenCards: React.FC<Props> = ({ resumen, totalMovimientos, loading = false }) => {
+const ResumenCards: React.FC<Props> = memo(({ resumen, totalMovimientos, loading = false }) => {
   if (loading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -27,7 +27,7 @@ const ResumenCards: React.FC<Props> = ({ resumen, totalMovimientos, loading = fa
     );
   }
 
-  const cards = [
+  const cards = useMemo(() => [
     {
       title: 'Total Entradas',
       value: formatearMonto(resumen.totalEntradas),
@@ -96,7 +96,7 @@ const ResumenCards: React.FC<Props> = ({ resumen, totalMovimientos, loading = fa
       valueColor: 'text-gray-700',
       shadowColor: 'shadow-gray-100/50'
     }
-  ];
+  ], [resumen, totalMovimientos]);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -151,6 +151,8 @@ const ResumenCards: React.FC<Props> = ({ resumen, totalMovimientos, loading = fa
       ))}
     </div>
   );
-};
+});
+
+ResumenCards.displayName = 'ResumenCards';
 
 export default ResumenCards;

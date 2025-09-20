@@ -90,12 +90,6 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
         fechaInicio.setDate(ahora.getDate() - 7);
     }
 
-    console.log('🔍 DEBUGGING - Fechas calculadas:', {
-      periodo: configuracion.periodoSeleccionado,
-      fechaInicio: fechaInicio.toISOString(),
-      fechaFin: fechaFin.toISOString()
-    });
-
     return { fechaInicio, fechaFin };
   }, [configuracion.periodoSeleccionado]);
 
@@ -118,10 +112,6 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
 
       const response = await obtenerMovimientos(filtros);
       const movimientos = response.data?.movimientos || [];
-      
-      console.log('🔍 DEBUGGING - API Response completa:', response);
-      console.log('🔍 DEBUGGING - Movimientos obtenidos:', movimientos);
-      console.log('🔍 DEBUGGING - Cantidad de movimientos:', movimientos.length);
       
       setDatosOriginales(movimientos);
     } catch (err) {
@@ -211,17 +201,7 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
     const periodosCompletos = generarPeriodosCompletos(configuracion.periodoSeleccionado, fechasPeriodo);
     
     // Luego llenar con datos reales
-    console.log('🔍 DEBUGGING - datosOriginales:', datosOriginales);
-    console.log('🔍 DEBUGGING - periodosCompletos inicial:', periodosCompletos);
-    
-    datosOriginales.forEach((movimiento, index) => {
-      console.log(`🔍 DEBUGGING - Movimiento ${index}:`, {
-        fechaCaja: movimiento.fechaCaja,
-        tipoCosto: movimiento.tipoCosto,
-        monto: movimiento.monto,
-        descripcion: movimiento.descripcion
-      });
-      
+    datosOriginales.forEach((movimiento) => {
       const fecha = new Date(movimiento.fechaCaja);
       let claveGrupo: string;
 
@@ -234,7 +214,6 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
         case PeriodoGrafico.SEMANA:
           const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
           claveGrupo = diasSemana[fecha.getDay()];
-          console.log(`🔍 DEBUGGING - Fecha: ${fecha.toISOString()}, Día de semana: ${fecha.getDay()}, Clave: ${claveGrupo}`);
           break;
 
         case PeriodoGrafico.MES:
@@ -251,20 +230,11 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
           claveGrupo = fecha.toISOString().split('T')[0];
       }
 
-      console.log(`🔍 DEBUGGING - claveGrupo calculada: ${claveGrupo}`);
-
       // Buscar el período correspondiente y agregar datos
       const periodoEncontrado = periodosCompletos.find(p => p.periodo === claveGrupo);
-      console.log(`🔍 DEBUGGING - periodoEncontrado:`, periodoEncontrado);
       
       if (periodoEncontrado) {
         const monto = movimiento.monto || 0;
-        console.log(`🔍 DEBUGGING - Procesando monto: ${monto} para tipoCosto: "${movimiento.tipoCosto}"`);
-        console.log(`🔍 DEBUGGING - Comparaciones:`);
-        console.log(`  - tipoCosto === TipoCosto.MANO_OBRA: ${movimiento.tipoCosto === TipoCosto.MANO_OBRA}`);
-        console.log(`  - tipoCosto === TipoCosto.MATERIA_PRIMA: ${movimiento.tipoCosto === TipoCosto.MATERIA_PRIMA}`);
-        console.log(`  - tipoCosto === TipoCosto.OTROS_GASTOS: ${movimiento.tipoCosto === TipoCosto.OTROS_GASTOS}`);
-        console.log(`  - TipoCosto enum values:`, TipoCosto);
 
         const tipoCostoLimpio = String(movimiento.tipoCosto).toLowerCase().trim();
         
@@ -272,27 +242,21 @@ const GraficoCajaLineal: React.FC<Props> = ({ className = "" }) => {
           case TipoCosto.MANO_OBRA:
           case 'mano_obra':
             periodoEncontrado.manoObra += monto;
-            console.log(`🔍 DEBUGGING - Agregado a manoObra: ${monto}, total: ${periodoEncontrado.manoObra}`);
             break;
           case TipoCosto.MATERIA_PRIMA:
           case 'materia_prima':
             periodoEncontrado.materiaPrima += monto;
-            console.log(`🔍 DEBUGGING - Agregado a materiaPrima: ${monto}, total: ${periodoEncontrado.materiaPrima}`);
             break;
           case TipoCosto.OTROS_GASTOS:
           case 'otros_gastos':
             periodoEncontrado.otrosGastos += monto;
-            console.log(`🔍 DEBUGGING - Agregado a otrosGastos: ${monto}, total: ${periodoEncontrado.otrosGastos}`);
             break;
           default:
-            console.log(`🔍 DEBUGGING - tipoCosto no reconocido: "${movimiento.tipoCosto}" (limpio: "${tipoCostoLimpio}")`);
+            // tipoCosto no reconocido, se asigna a otros gastos por defecto
+            periodoEncontrado.otrosGastos += monto;
         }
-      } else {
-        console.log(`🔍 DEBUGGING - No se encontró período para claveGrupo: ${claveGrupo}`);
       }
     });
-
-    console.log('🔍 DEBUGGING - periodosCompletos final:', periodosCompletos);
 
     return periodosCompletos;
   }, [datosOriginales, configuracion.periodoSeleccionado, fechasPeriodo]);

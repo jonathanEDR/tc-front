@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 
 interface Props {
   currentPage: number;
@@ -7,17 +7,17 @@ interface Props {
   loading?: boolean;
 }
 
-const Paginacion: React.FC<Props> = ({ currentPage, totalPages, onPageChange, loading = false }) => {
+const Paginacion: React.FC<Props> = memo(({ currentPage, totalPages, onPageChange, loading = false }) => {
   if (totalPages <= 1) return null;
 
-  const getPageNumbers = () => {
+  const pageNumbers = useMemo(() => {
     const pages = [];
     const showPages = 5; // Número de páginas a mostrar
     const halfRange = Math.floor(showPages / 2);
-    
+
     let startPage = Math.max(1, currentPage - halfRange);
     let endPage = Math.min(totalPages, currentPage + halfRange);
-    
+
     // Ajustar si estamos cerca del inicio o final
     if (endPage - startPage + 1 < showPages) {
       if (startPage === 1) {
@@ -26,15 +26,13 @@ const Paginacion: React.FC<Props> = ({ currentPage, totalPages, onPageChange, lo
         startPage = Math.max(1, endPage - showPages + 1);
       }
     }
-    
+
     for (let i = startPage; i <= endPage; i++) {
       pages.push(i);
     }
-    
-    return pages;
-  };
 
-  const pageNumbers = getPageNumbers();
+    return pages;
+  }, [currentPage, totalPages]);
 
   return (
     <div className="flex items-center justify-between bg-white px-4 py-3 sm:px-6 border-t border-gray-200">
@@ -158,6 +156,8 @@ const Paginacion: React.FC<Props> = ({ currentPage, totalPages, onPageChange, lo
       </div>
     </div>
   );
-};
+});
+
+Paginacion.displayName = 'Paginacion';
 
 export default Paginacion;

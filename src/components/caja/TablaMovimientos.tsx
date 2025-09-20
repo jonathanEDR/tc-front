@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import { useUser } from '@clerk/clerk-react';
-import { 
-  IMovimientoCaja, 
+import {
+  IMovimientoCaja,
   TipoMovimiento,
   LABELS_CATEGORIA,
   LABELS_TIPO_COSTO,
-  LABELS_CATEGORIA_INGRESO 
+  LABELS_CATEGORIA_INGRESO
 } from '../../types/caja';
 import { formatearMonto } from '../../utils/cajaApi';
 import { dateUtils } from '../../utils/dateUtils';
@@ -18,11 +18,12 @@ interface Props {
   processingAction?: boolean;
 }
 
-const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onEliminar, processingAction = false }) => {
+const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, onEliminar, processingAction = false }) => {
   const { user } = useUser();
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
-  
-  const handleEliminar = async (id: string) => {
+
+  // ✅ Memoizar handleEliminar
+  const handleEliminar = useCallback(async (id: string) => {
     if (eliminandoId || processingAction) return; // Prevenir clicks múltiples
     
     if (!window.confirm('¿Estás seguro de eliminar este movimiento?')) {
@@ -35,7 +36,12 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
     } finally {
       setEliminandoId(null);
     }
-  };
+  }, [eliminandoId, processingAction, onEliminar]);
+
+  // ✅ Memoizar si el usuario puede eliminar movimientos
+  const puedeEliminar = useMemo(() => {
+    return !!user;
+  }, [user]);
 
   if (error) {
     return (
@@ -209,7 +215,7 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
                     {/* Acciones */}
                     <td className="px-4 py-3 whitespace-nowrap text-center">
                       <div className="flex justify-center space-x-1">
-                        {user?.id === movimiento.usuario?.clerkId && (
+                        {puedeEliminar && (
                           <button
                             onClick={() => handleEliminar(movimiento._id!)}
                             disabled={eliminandoId === movimiento._id || processingAction}
@@ -228,15 +234,17 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
                             )}
                           </button>
                         )}
-                        <button
-                          className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 rounded hover:bg-blue-50"
-                          title="Ver detalles"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
+                        {puedeEliminar && (
+                          <button
+                            className="text-blue-600 hover:text-blue-800 transition-colors duration-200 p-1 rounded hover:bg-blue-50"
+                            title="Ver detalles"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -248,6 +256,8 @@ const TablaMovimientos: React.FC<Props> = ({ movimientos, loading, error, onElim
       </div>
     </div>
   );
-};
+});
+
+TablaMovimientos.displayName = 'TablaMovimientos';
 
 export default TablaMovimientos;

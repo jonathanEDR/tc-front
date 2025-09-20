@@ -12,10 +12,10 @@ import {
   LONGITUD_MAXIMA_DESCRIPCION,
   LONGITUD_MAXIMA_OBSERVACIONES,
   MONTO_MAXIMO_ESTIMADO,
-  MAXIMO_ETIQUETAS,
   IErroresCatalogo
 } from '../../types/herramientas';
-import { crearGastoCatalogo, actualizarGastoCatalogo, procesarEtiquetas, validarEtiquetas } from '../../utils/herramientasApi';
+import { procesarEtiquetas, validarEtiquetas } from '../../utils/herramientasApi';
+import { useCatalogo } from '../../store/CatalogoContext';
 
 interface Props {
   gasto?: ICatalogoGasto; // Para edición (opcional)
@@ -43,9 +43,9 @@ const FormularioCatalogo: React.FC<Props> = ({
   esModalAnidado = false,
   modoCompacto = false
 }) => {
+  const { createGasto, updateGasto, processing } = useCatalogo();
   const [formData, setFormData] = useState<IFormularioCatalogoGasto>(DATOS_INICIALES);
   const [errors, setErrors] = useState<IErroresCatalogo>({});
-  const [loading, setLoading] = useState(false);
   const [etiquetasTexto, setEtiquetasTexto] = useState('');
 
   const esEdicion = !!gasto;
@@ -138,11 +138,17 @@ const FormularioCatalogo: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prevenir múltiples envíos
+    if (processing) {
+      console.warn('[FormularioCatalogo] Envío bloqueado: ya está en proceso');
+      return;
+    }
+    
     if (!validarFormulario()) {
       return;
     }
 
-    setLoading(true);
+    console.log('[FormularioCatalogo] Iniciando envío de formulario');
 
     try {
       // Preparar datos para envío
@@ -164,16 +170,20 @@ const FormularioCatalogo: React.FC<Props> = ({
         datosEnvio.etiquetas = undefined;
       }
 
-      console.log('Datos a enviar:', datosEnvio);
+      console.log('[FormularioCatalogo] Datos a enviar:', datosEnvio);
 
       if (esEdicion && gasto?._id) {
-        const response = await actualizarGastoCatalogo(gasto._id, datosEnvio);
-        if (response.success) {
+        console.log('[FormularioCatalogo] Actualizando gasto existente:', gasto._id);
+        const exito = await updateGasto(gasto._id, datosEnvio);
+        if (exito) {
+          console.log('[FormularioCatalogo] Actualización exitosa');
           onSuccess();
         }
       } else {
-        const response = await crearGastoCatalogo(datosEnvio);
-        if (response.success) {
+        console.log('[FormularioCatalogo] Creando nuevo gasto');
+        const exito = await createGasto(datosEnvio);
+        if (exito) {
+          console.log('[FormularioCatalogo] Creación exitosa');
           if (!esModalAnidado) {
             limpiarFormulario();
           }
@@ -181,9 +191,9 @@ const FormularioCatalogo: React.FC<Props> = ({
         }
       }
     } catch (error) {
-      console.error('Error en el formulario:', error);
+      console.error('[FormularioCatalogo] Error en el formulario:', error);
     } finally {
-      setLoading(false);
+      console.log('[FormularioCatalogo] Finalizando envío');
     }
   };
 
@@ -526,10 +536,10 @@ const FormularioCatalogo: React.FC<Props> = ({
         <div className="flex flex-col sm:flex-row gap-4 pt-6">
           <button
             type="submit"
-            disabled={loading}
+            disabled={processing}
             className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? (
+            {processing ? (
               <span className="flex items-center justify-center">
                 <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -546,7 +556,7 @@ const FormularioCatalogo: React.FC<Props> = ({
             <button
               type="button"
               onClick={onCancel}
-              disabled={loading}
+              disabled={processing}
               className="flex-1 bg-gray-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-700 disabled:opacity-50 transition-colors"
             >
               Cancelar
@@ -557,7 +567,7 @@ const FormularioCatalogo: React.FC<Props> = ({
             <button
               type="button"
               onClick={limpiarFormulario}
-              disabled={loading}
+              disabled={processing}
               className="flex-1 bg-yellow-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-yellow-700 disabled:opacity-50 transition-colors"
             >
               Limpiar

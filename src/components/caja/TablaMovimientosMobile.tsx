@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { 
   IMovimientoCaja, 
@@ -17,17 +17,17 @@ interface Props {
   processingAction?: boolean;
 }
 
-const TablaMovimientosMobile: React.FC<Props> = ({ 
-  movimientos, 
-  loading, 
-  error, 
-  onEliminar, 
-  processingAction = false 
+const TablaMovimientosMobile: React.FC<Props> = memo(({
+  movimientos,
+  loading,
+  error,
+  onEliminar,
+  processingAction = false
 }) => {
   const { user } = useUser();
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   
-  const handleEliminar = async (id: string) => {
+  const handleEliminar = useCallback(async (id: string) => {
     if (eliminandoId || processingAction) return;
     
     if (!window.confirm('¿Estás seguro de eliminar este movimiento?')) {
@@ -40,7 +40,7 @@ const TablaMovimientosMobile: React.FC<Props> = ({
     } finally {
       setEliminandoId(null);
     }
-  };
+  }, [eliminandoId, processingAction, onEliminar]);
 
   if (loading) {
     return (
@@ -112,7 +112,7 @@ const TablaMovimientosMobile: React.FC<Props> = ({
       <div className="space-y-3">
         {movimientos.map((movimiento) => {
           const esIngreso = movimiento.tipoMovimiento === TipoMovimiento.ENTRADA;
-          const esAutor = user?.id === movimiento.usuario?.clerkId;
+          const esAutor = user?.id === movimiento.usuario?._id;
           
           return (
             <div 
@@ -210,6 +210,8 @@ const TablaMovimientosMobile: React.FC<Props> = ({
       </div>
     </div>
   );
-};
+});
+
+TablaMovimientosMobile.displayName = 'TablaMovimientosMobile';
 
 export default TablaMovimientosMobile;

@@ -13,8 +13,10 @@ import GraphCarousel from './GraphCarousel';
 import GraphModal from './GraphModal';
 import { GraphModalProvider, useGraphModal } from './GraphModalContext';
 import CajaLinealPreview from './CajaLinealPreview';
-import { DistribucionGastosPreview, IngresosGastosPreview } from './GraphPreviews';
+import { DistribucionGastosPreview, RankingGastosPreview } from './GraphPreviews';
 import GraficoCajaLineal from '../graficos/GraficoCajaLineal';
+import GraficoDistribucionGastos from '../graficos/GraficoDistribucionGastos';
+import GraficoRankingGastos from '../graficos/GraficoRankingGastos';
 
 const DashboardHome: React.FC = () => {
   return (
@@ -122,12 +124,12 @@ const DashboardContent: React.FC = () => {
                 <DistribucionGastosPreview onClick={() => abrirModal('distribucion-gastos')} />
               </div>
             </div>
-            <div className="w-full h-full bg-purple-100 flex items-center justify-center rounded-lg">
+            <div className="w-full h-full bg-orange-100 flex items-center justify-center rounded-lg">
               <div className="text-center">
-                <div className="text-4xl mb-2">⚖️</div>
-                <h3 className="font-semibold text-purple-800">Gráfico 3</h3>
-                <p className="text-sm text-purple-600">Ingresos vs Gastos</p>
-                <IngresosGastosPreview onClick={() => abrirModal('ingresos-gastos')} />
+                <div className="text-4xl mb-2">📊</div>
+                <h3 className="font-semibold text-orange-800">Gráfico 3</h3>
+                <p className="text-sm text-orange-600">Ranking de Gastos</p>
+                <RankingGastosPreview onClick={() => abrirModal('ranking-gastos')} />
               </div>
             </div>
           </GraphCarousel>
@@ -240,27 +242,15 @@ const DashboardContent: React.FC = () => {
         onClose={cerrarModal}
         title="🍰 Distribución de Gastos por Categoría"
       >
-        <div className="flex items-center justify-center h-96 text-gray-500">
-          <div className="text-center">
-            <div className="text-6xl mb-4">📊</div>
-            <h3 className="text-lg font-semibold mb-2">Gráfico en Desarrollo</h3>
-            <p>Este gráfico de distribución estará disponible próximamente</p>
-          </div>
-        </div>
+        <GraficoDistribucionGastos />
       </GraphModal>
 
       <GraphModal
-        isOpen={estaAbierto('ingresos-gastos')}
+        isOpen={estaAbierto('ranking-gastos')}
         onClose={cerrarModal}
-        title="⚖️ Comparativo Ingresos vs Gastos"
+        title="📊 Ranking de Gastos por Descripción"
       >
-        <div className="flex items-center justify-center h-96 text-gray-500">
-          <div className="text-center">
-            <div className="text-6xl mb-4">📈</div>
-            <h3 className="text-lg font-semibold mb-2">Gráfico en Desarrollo</h3>
-            <p>Este gráfico comparativo estará disponible próximamente</p>
-          </div>
-        </div>
+        <GraficoRankingGastos />
       </GraphModal>
     </DashboardLayout>
   );

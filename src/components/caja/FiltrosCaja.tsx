@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo, useMemo } from 'react';
 import { 
   IFiltrosCaja,
   LABELS_TIPO_MOVIMIENTO,
@@ -17,16 +17,18 @@ interface Props {
   loading?: boolean;
 }
 
-const FiltrosCaja: React.FC<Props> = ({ filtros, onFiltroChange, onLimpiar, loading = false }) => {
+const FiltrosCaja: React.FC<Props> = memo(({ filtros, onFiltroChange, onLimpiar, loading = false }) => {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [aplicandoRango, setAplicandoRango] = useState(false);
   
-  const filtrosActivos = Object.entries(filtros).filter(([key, value]) => 
-    key !== 'page' && key !== 'limit' && value !== undefined && value !== null && value !== ''
-  ).length;
+  const filtrosActivos = useMemo(() => {
+    return Object.entries(filtros).filter(([key, value]) =>
+      key !== 'page' && key !== 'limit' && value !== undefined && value !== null && value !== ''
+    ).length;
+  }, [filtros]);
 
   // Limpiar filtros incompatibles cuando cambia el tipo de movimiento
-  const handleTipoMovimientoChange = (tipoMovimiento: string | undefined) => {
+  const handleTipoMovimientoChange = useCallback((tipoMovimiento: string | undefined) => {
     onFiltroChange('tipoMovimiento', tipoMovimiento || undefined);
     
     if (tipoMovimiento === TipoMovimiento.ENTRADA) {
@@ -37,10 +39,10 @@ const FiltrosCaja: React.FC<Props> = ({ filtros, onFiltroChange, onLimpiar, load
       // Si selecciona SALIDA, limpiar filtros de ingreso
       onFiltroChange('categoriaIngreso', undefined);
     }
-  };
+  }, [onFiltroChange]);
 
   // Rangos rápidos para fechas
-  const rangosRapidos = [
+  const rangosRapidos = useMemo(() => [
     {
       label: 'Hoy',
       value: () => {
@@ -108,9 +110,9 @@ const FiltrosCaja: React.FC<Props> = ({ filtros, onFiltroChange, onLimpiar, load
         };
       }
     }
-  ];
+  ], []);
 
-  const aplicarRangoRapido = async (rangoFn: () => { fechaInicio: string; fechaFin: string }) => {
+  const aplicarRangoRapido = useCallback(async (rangoFn: () => { fechaInicio: string; fechaFin: string }) => {
     if (aplicandoRango) return; // Prevenir clicks múltiples
     
     setAplicandoRango(true);
@@ -122,7 +124,7 @@ const FiltrosCaja: React.FC<Props> = ({ filtros, onFiltroChange, onLimpiar, load
       // Pequeño delay para prevenir clicks accidentales
       setTimeout(() => setAplicandoRango(false), 500);
     }
-  };
+  }, [aplicandoRango, onFiltroChange]);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
@@ -424,6 +426,8 @@ const FiltrosCaja: React.FC<Props> = ({ filtros, onFiltroChange, onLimpiar, load
       )}
     </div>
   );
-};
+});
+
+FiltrosCaja.displayName = 'FiltrosCaja';
 
 export default FiltrosCaja;

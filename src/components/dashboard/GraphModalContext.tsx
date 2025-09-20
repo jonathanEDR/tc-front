@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 // Tipos de gráficos disponibles
-export type TipoGrafico = 'caja-lineal' | 'distribucion-gastos' | 'ingresos-gastos';
+export type TipoGrafico = 'caja-lineal' | 'distribucion-gastos' | 'ranking-gastos';
 
 interface GraphModalContextType {
   modalAbierto: TipoGrafico | null;

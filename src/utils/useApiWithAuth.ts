@@ -1,13 +1,17 @@
 import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 
+const isDev = import.meta.env.DEV;
+
 // Hook personalizado para hacer llamadas API autenticadas
 export const useApiWithAuth = () => {
   const { getToken, isSignedIn } = useAuth();
 
   const makeRequest = async (method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, data?: any) => {
-    console.log(`[API] Iniciando ${method} ${url}`);
-    console.log(`[API] Usuario autenticado:`, isSignedIn);
+    if (isDev) {
+      console.log(`[API] Iniciando ${method} ${url}`);
+      console.log(`[API] Usuario autenticado:`, isSignedIn);
+    }
 
     if (!isSignedIn) {
       throw new Error('Usuario no autenticado');
@@ -15,8 +19,11 @@ export const useApiWithAuth = () => {
 
     try {
       const token = await getToken();
-      console.log(`[API] Token obtenido:`, token ? 'SÍ' : 'NO');
-      
+
+      if (isDev) {
+        console.log(`[API] Token status:`, token ? 'PRESENT' : 'MISSING');
+      }
+
       if (!token) {
         throw new Error('No se pudo obtener el token de autenticación');
       }
@@ -24,9 +31,11 @@ export const useApiWithAuth = () => {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
       const BASE_URL = API_BASE_URL ? `${API_BASE_URL}/api` : '/api';
       const fullUrl = `${BASE_URL}${url}`;
-      
-      console.log(`[API] URL completa:`, fullUrl);
-      
+
+      if (isDev) {
+        console.log(`[API] URL completa:`, fullUrl);
+      }
+
       const config = {
         method,
         url: fullUrl,
@@ -37,18 +46,25 @@ export const useApiWithAuth = () => {
         data: data ? JSON.stringify(data) : undefined
       };
 
-      console.log(`[API] Headers:`, config.headers);
-      
+      if (isDev) {
+        console.log(`[API] Request ready with authorization header`);
+      }
+
       const response = await axios(config);
-      console.log(`[API] Respuesta exitosa:`, response.status);
+
+      if (isDev) {
+        console.log(`[API] Respuesta exitosa:`, response.status);
+      }
+
       return response.data;
     } catch (error: any) {
-      console.error(`[API] Error detallado en ${method} ${url}:`, {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        config: error.config
-      });
+      if (isDev) {
+        console.error(`[API] Error en ${method} ${url}:`, {
+          message: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        });
+      }
       throw error;
     }
   };

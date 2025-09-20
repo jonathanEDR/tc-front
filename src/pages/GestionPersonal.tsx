@@ -23,15 +23,36 @@ const GestionPersonal: React.FC = () => {
 
       if (responseUsuarios.success) {
         setUsuarios(responseUsuarios.data);
+      } else {
+        console.warn('Error en response de usuarios:', responseUsuarios);
       }
 
       if (responseEstadisticas.success) {
         setEstadisticas(responseEstadisticas.data);
+      } else {
+        console.warn('Error en response de estadísticas:', responseEstadisticas);
       }
 
     } catch (err) {
       console.error('Error al cargar datos:', err);
-      setError('Error al cargar los datos de usuarios');
+      
+      // Mejor manejo de errores con mensajes específicos
+      let errorMessage = 'Error al cargar los datos de usuarios';
+      
+      if (err && typeof err === 'object' && 'message' in err) {
+        const errorObj = err as any;
+        if (errorObj.message?.includes('Network Error') || errorObj.code === 'ERR_NETWORK') {
+          errorMessage = 'Error de conexión: No se puede conectar al servidor. Verifica que el backend esté ejecutándose.';
+        } else if (errorObj.response?.status === 401) {
+          errorMessage = 'Error de autenticación: Tu sesión ha expirado.';
+        } else if (errorObj.response?.status === 500) {
+          errorMessage = 'Error interno del servidor. Intenta nuevamente en unos momentos.';
+        } else if (errorObj.message) {
+          errorMessage = `Error: ${errorObj.message}`;
+        }
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -12,7 +12,6 @@ export const setupAxiosInterceptors = () => {
           const token = await window.Clerk?.session?.getToken();
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
-            console.log('[axios] Token agregado a la petición:', config.url);
           } else {
             console.warn('[axios] No se pudo obtener token de Clerk para:', config.url);
           }

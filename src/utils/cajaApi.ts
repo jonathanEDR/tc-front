@@ -13,26 +13,33 @@ import {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const BASE_URL = API_BASE_URL ? `${API_BASE_URL}/api` : '/api';
 
+const isDev = import.meta.env.DEV;
+
 // Función helper para obtener token de Clerk
 const getAuthHeaders = async () => {
   try {
     // Intentar obtener el token de diferentes maneras
     let token = null;
-    
+
     // Método 1: Desde window.Clerk (cuando está disponible)
     if ((window as any).Clerk?.session) {
       token = await (window as any).Clerk.session.getToken();
     }
-    
+
     // Método 2: Desde el store de Clerk si está disponible
     if (!token && (window as any).__clerk_token) {
       token = (window as any).__clerk_token;
     }
 
-    console.log('Token obtenido:', token ? 'SÍ' : 'NO');
+    if (isDev) {
+      console.log('Token status:', token ? 'PRESENT' : 'MISSING');
+    }
+
     return token ? { Authorization: `Bearer ${token}` } : {};
   } catch (error) {
-    console.error('Error obteniendo token de Clerk:', error);
+    if (isDev) {
+      console.error('Error obteniendo token de Clerk:', error);
+    }
     return {};
   }
 };
