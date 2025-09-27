@@ -16,9 +16,10 @@ interface Props {
   error: string | null;
   onEliminar: (id: string) => Promise<void>;
   processingAction?: boolean;
+  currentPage?: number;
 }
 
-const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, onEliminar, processingAction = false }) => {
+const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, onEliminar, processingAction = false, currentPage = 1 }) => {
   const { user } = useUser();
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
@@ -101,6 +102,9 @@ const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, o
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    #
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Fecha
                   </th>
@@ -128,10 +132,18 @@ const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, o
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {movimientos.map((movimiento) => (
-                  <tr key={movimiento._id} className="hover:bg-gray-50 transition-colors">
-                    {/* Fecha */}
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                {movimientos.map((movimiento, index) => {
+                  // Calcular numeración global considerando la paginación
+                  const numeroGlobal = ((currentPage - 1) * 10) + index + 1;
+                  
+                  return (
+                    <tr key={movimiento._id} className="hover:bg-gray-50 transition-colors">
+                      {/* Numeración */}
+                      <td className="px-3 py-3 whitespace-nowrap text-center text-sm font-medium text-gray-600">
+                        {numeroGlobal}
+                      </td>
+                      {/* Fecha */}
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex flex-col">
                         <span className="font-medium text-xs">
                           {dateUtils.formatters.shortDateTime(movimiento.fechaCaja)}
@@ -248,7 +260,8 @@ const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, o
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

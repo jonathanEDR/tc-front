@@ -89,10 +89,16 @@ function createFilterableReducer<T extends { _id?: string }, F>() {
         return { ...state, currentPage: action.payload };
 
       case 'SET_FILTERS':
+        const newFilters = { ...state.filters, ...action.payload };
+        const pageValue = (action.payload as any).page;
         return {
           ...state,
-          filters: { ...state.filters, ...action.payload },
-          currentPage: 1 // Reset a primera página cuando cambian filtros
+          filters: newFilters,
+          // Solo reset a primera página si no se está actualizando específicamente la página
+          currentPage: pageValue !== undefined ? pageValue : (
+            // Si se cambió algo diferente a la página, reset a 1
+            Object.keys(action.payload).some(key => key !== 'page') ? 1 : state.currentPage
+          )
         };
 
       case 'RESET_FILTERS':

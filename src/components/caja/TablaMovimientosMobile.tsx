@@ -15,6 +15,7 @@ interface Props {
   error: string | null;
   onEliminar: (id: string) => Promise<void>;
   processingAction?: boolean;
+  currentPage?: number;
 }
 
 const TablaMovimientosMobile: React.FC<Props> = memo(({
@@ -22,7 +23,8 @@ const TablaMovimientosMobile: React.FC<Props> = memo(({
   loading,
   error,
   onEliminar,
-  processingAction = false
+  processingAction = false,
+  currentPage = 1
 }) => {
   const { user } = useUser();
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
@@ -110,17 +112,24 @@ const TablaMovimientosMobile: React.FC<Props> = memo(({
       <h3 className="text-lg font-semibold mb-4">Movimientos</h3>
       
       <div className="space-y-3">
-        {movimientos.map((movimiento) => {
+        {movimientos.map((movimiento, index) => {
           const esIngreso = movimiento.tipoMovimiento === TipoMovimiento.ENTRADA;
           const esAutor = user?.id === movimiento.usuario?._id;
+          // Calcular numeración global considerando la paginación
+          const numeroGlobal = ((currentPage - 1) * 10) + index + 1;
           
           return (
             <div 
               key={movimiento._id} 
-              className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+              className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow relative"
             >
+              {/* Número de registro */}
+              <div className="absolute top-2 right-2 bg-gray-100 text-gray-600 text-xs font-medium px-2 py-1 rounded-full">
+                #{numeroGlobal}
+              </div>
+              
               {/* Header: Descripción y Monto */}
-              <div className="flex justify-between items-start mb-3">
+              <div className="flex justify-between items-start mb-3 pr-12">
                 <div className="flex-1 min-w-0">
                   <h4 className="text-sm font-semibold text-gray-900 truncate">
                     {movimiento.descripcion}

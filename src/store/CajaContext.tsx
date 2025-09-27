@@ -103,12 +103,15 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
         }
       });
 
+      console.log('[CajaContext] Filtros enviados:', filterableState.filters);
+      console.log('[CajaContext] URL construida:', `/caja?${params.toString()}`);
+
       const response = await api.get(`/caja?${params.toString()}`);
 
       if (response.success) {
         filterableActions.setData(response.data.movimientos);
         filterableActions.setPagination({
-          currentPage: filterableState.currentPage,
+          currentPage: response.data.page || filterableState.filters.page || 1,
           totalPages: response.data.totalPages,
           totalItems: response.data.total
         });
@@ -198,12 +201,12 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
     await loadMovimientos();
   };
 
-  // Cargar datos automáticamente cuando cambian los filtros
+  // Cargar datos automáticamente cuando cambian los filtros o la página
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       loadMovimientos();
     }
-  }, [isLoaded, isSignedIn, filterableState.filters, filterableState.currentPage]);
+  }, [isLoaded, isSignedIn, filterableState.filters]);
 
   // Acciones específicas de Caja
   const setShowIngresoForm = (show: boolean) => {
@@ -214,9 +217,22 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
     setCajaState(prev => ({ ...prev, showSalidaForm: show }));
   };
 
-  // Wrapper para setFilters que también actualiza la página
+  // Wrapper para setFilters que maneja correctamente la paginación
   const setFilters = (filters: Partial<IFiltrosCaja>) => {
     filterableActions.setFilters(filters);
+  };
+
+  // Wrapper para resetFilters que restaura la página inicial
+  const resetFilters = () => {
+    filterableActions.resetFilters();
+    filterableActions.setCurrentPage(1);
+  };
+
+  // Función personalizada para cambiar página que sincroniza correctamente
+  const setCurrentPage = (page: number) => {
+    // Actualizar tanto el estado como los filtros
+    filterableActions.setCurrentPage(page);
+    filterableActions.setFilters({ page });
   };
 
   const contextValue: CajaContextType = {
@@ -236,9 +252,9 @@ export const CajaProvider: React.FC<CajaProviderProps> = ({ children }) => {
     showSalidaForm: cajaState.showSalidaForm,
 
     // Acciones generales
-    setCurrentPage: filterableActions.setCurrentPage,
+    setCurrentPage,
     setFilters,
-    resetFilters: filterableActions.resetFilters,
+    resetFilters,
 
     // Acciones específicas de Caja
     setShowIngresoForm,

@@ -140,6 +140,7 @@ const Caja: React.FC = () => {
             error={error}
             onEliminar={handleEliminarMovimiento}
             processingAction={processing}
+            currentPage={currentPage}
           />
         ) : (
           <TablaMovimientos
@@ -148,6 +149,7 @@ const Caja: React.FC = () => {
             error={error}
             onEliminar={handleEliminarMovimiento}
             processingAction={processing}
+            currentPage={currentPage}
           />
         )}
 
