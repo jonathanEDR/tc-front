@@ -48,7 +48,7 @@ export const useActividadReciente = (limite: number = 5): UseActividadRecienteRe
 
   const formatearMonto = (monto: number, tipo: 'ingreso' | 'gasto'): string => {
     const signo = tipo === 'ingreso' ? '+' : '-';
-    return `${signo}S/ ${monto.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`;
+    return `${signo}S/ ${monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   const actualizarActividad = async () => {
