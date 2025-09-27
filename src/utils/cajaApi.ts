@@ -116,16 +116,24 @@ export const obtenerResumenReportes = async (
 
 // Utilidades para formateo
 export const formatearMonto = (monto: number): string => {
-  return new Intl.NumberFormat('es-CO', {
+  return new Intl.NumberFormat('es-PE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(monto);
+};
+
+// Función auxiliar para formatear moneda completa con símbolo
+export const formatearMontoConSimbolo = (monto: number): string => {
+  return new Intl.NumberFormat('es-PE', {
     style: 'currency',
-    currency: 'COP',
+    currency: 'PEN',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(monto);
 };
 
 export const formatearFecha = (fecha: string): string => {
-  return new Date(fecha).toLocaleDateString('es-CO', {
+  return new Date(fecha).toLocaleDateString('es-PE', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit'
@@ -133,7 +141,7 @@ export const formatearFecha = (fecha: string): string => {
 };
 
 export const formatearFechaHora = (fecha: string): string => {
-  return new Date(fecha).toLocaleString('es-CO', {
+  return new Date(fecha).toLocaleString('es-PE', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

@@ -194,7 +194,7 @@ const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, o
                     <td className="px-4 py-3 whitespace-nowrap text-right">
                       {movimiento.tipoMovimiento === TipoMovimiento.ENTRADA ? (
                         <div className="text-green-600 font-semibold">
-                          +${formatearMonto(movimiento.monto)}
+                          +S/{formatearMonto(movimiento.monto)}
                         </div>
                       ) : (
                         <span className="text-gray-300">—</span>
@@ -205,7 +205,7 @@ const TablaMovimientos: React.FC<Props> = memo(({ movimientos, loading, error, o
                     <td className="px-4 py-3 whitespace-nowrap text-right">
                       {movimiento.tipoMovimiento === TipoMovimiento.SALIDA ? (
                         <div className="text-red-600 font-semibold">
-                          -${formatearMonto(movimiento.monto)}
+                          -S/{formatearMonto(movimiento.monto)}
                         </div>
                       ) : (
                         <span className="text-gray-300">—</span>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, useMemo } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { 
   IMovimientoCaja, 
@@ -139,8 +139,8 @@ const TablaMovimientosMobile: React.FC<Props> = memo(({
                     : 'text-red-600'
                 }`}>
                   {esIngreso 
-                    ? `+$${formatearMonto(movimiento.monto)}` 
-                    : `-$${formatearMonto(movimiento.monto)}`
+                    ? `+S/${formatearMonto(movimiento.monto)}` 
+                    : `-S/${formatearMonto(movimiento.monto)}`
                   }
                 </div>
               </div>
