@@ -9,18 +9,20 @@ import {
 import { Doughnut } from 'react-chartjs-2';
 import { 
   DatosDistribucionGastos,
+  ConfiguracionDistribucion,
   DetalleGasto,
   DatosTipoCosto,
-  ConfiguracionDistribucion,
+  FiltroFechas,
   COLORES_DISTRIBUCION,
   COLORES_CATEGORIA_CAJA,
   COLORES_CATEGORIAS,
-  PeriodoGrafico,
-  CONFIGURACION_PERIODOS
+  generarPresetsPeriodos
 } from '../../types/graficos';
-import { TipoCosto, CategoriaCaja, IMovimientoCaja, IFiltrosCaja, TipoMovimiento } from '../../types/caja';
+import SelectorFechas from '../common/SelectorFechas';
+import { IMovimientoCaja, TipoMovimiento, TipoCosto, CategoriaCaja, IFiltrosCaja } from '../../types/caja';
 import { obtenerMovimientos } from '../../utils/cajaApi';
 
+// Registrar componentes de Chart.js
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 // Función helper para formatear soles peruanos
@@ -38,44 +40,48 @@ const formatearPorcentaje = (porcentaje: number): string => {
   return `${porcentaje.toFixed(1)}%`;
 };
 
-// Función helper para obtener fechas de fallback si no hay datos
-const obtenerFechasFallback = (periodo: PeriodoGrafico): { fechaInicio: Date; fechaFin: Date } => {
-  // Si no hay datos en el período actual, usar septiembre 2025 donde sabemos que hay datos
-  switch (periodo) {
-    case PeriodoGrafico.SEMANA:
-      return {
-        fechaInicio: new Date('2025-09-14'),
-        fechaFin: new Date('2025-09-20')
-      };
-    case PeriodoGrafico.MES:
-      return {
-        fechaInicio: new Date('2025-09-01'),
-        fechaFin: new Date('2025-09-30')
-      };
-    case PeriodoGrafico.ANUAL:
-      return {
-        fechaInicio: new Date('2025-01-01'),
-        fechaFin: new Date('2025-12-31')
-      };
-    default:
-      return {
-        fechaInicio: new Date('2025-09-14'),
-        fechaFin: new Date('2025-09-20')
-      };
+// Función helper para obtener descripción del período
+const obtenerDescripcionPeriodo = (fechaInicio: Date, fechaFin: Date): string => {
+  const opciones: Intl.DateTimeFormatOptions = { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  };
+  
+  const fechaInicioStr = fechaInicio.toLocaleDateString('es-PE', opciones);
+  const fechaFinStr = fechaFin.toLocaleDateString('es-PE', opciones);
+  
+  // Si son el mismo día
+  if (fechaInicio.toDateString() === fechaFin.toDateString()) {
+    return `${fechaInicioStr}`;
   }
+  
+  return `${fechaInicioStr} - ${fechaFinStr}`;
 };
 
 interface Props {
   className?: string;
-  periodo?: PeriodoGrafico;
-  showPeriodSelector?: boolean;
+  fechasIniciales?: FiltroFechas;
+  showDateSelector?: boolean;
 }
 
 const GraficoDistribucionGastos: React.FC<Props> = ({ 
   className = "", 
-  periodo = PeriodoGrafico.SEMANA,
-  showPeriodSelector = true 
+  fechasIniciales,
+  showDateSelector = true 
 }) => {
+  // Generar fechas por defecto (últimos 7 días)
+  const fechasDefecto = React.useMemo(() => {
+    if (fechasIniciales) return fechasIniciales;
+    
+    const presets = generarPresetsPeriodos();
+    const presetUltimos7Dias = presets.find((p) => p.id === 'ultimos7dias');
+    return presetUltimos7Dias?.getFechas() || {
+      fechaInicio: new Date(new Date().setDate(new Date().getDate() - 6)),
+      fechaFin: new Date()
+    };
+  }, [fechasIniciales]);
+
   const [configuracion, setConfiguracion] = useState<ConfiguracionDistribucion>({
     mostrarPorcentajes: true,
     mostrarLeyenda: true,
@@ -88,77 +94,26 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
     error: null
   });
 
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<PeriodoGrafico>(periodo);
+  const [filtroFechas, setFiltroFechas] = useState<FiltroFechas>(fechasDefecto);
   const [datosOriginales, setDatosOriginales] = useState<IMovimientoCaja[]>([]);
 
-  // Calcular fechas según el período seleccionado - DINÁMICO
-  const fechasPeriodo = useMemo(() => {
-    const ahora = new Date();
-    let fechaInicio: Date;
-    let fechaFin: Date;
-
-    switch (periodoSeleccionado) {
-      case PeriodoGrafico.HOY:
-        // Desde las 00:00 hasta las 23:59 de hoy
-        fechaInicio = new Date(ahora);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.SEMANA:
-        // Últimos 7 días desde hoy
-        fechaInicio = new Date(ahora);
-        fechaInicio.setDate(ahora.getDate() - 6); // 6 días atrás + hoy = 7 días
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.MES:
-        // Todo el mes actual
-        fechaInicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.ANUAL:
-        // Todo el año actual
-        fechaInicio = new Date(ahora.getFullYear(), 0, 1);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora.getFullYear(), 11, 31);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      default:
-        // Fallback: últimos 7 días
-        fechaInicio = new Date(ahora);
-        fechaInicio.setDate(ahora.getDate() - 6);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-    }
-
-    console.log(`📅 DISTRIBUCIÓN - Fechas dinámicas [${periodoSeleccionado}]:`, {
-      fechaInicio: fechaInicio.toISOString(),
-      fechaFin: fechaFin.toISOString(),
-      añoActual: ahora.getFullYear(),
-      mesActual: ahora.getMonth() + 1
+  // Log de las fechas seleccionadas para debugging
+  React.useEffect(() => {
+    console.log(`📅 DISTRIBUCIÓN - Fechas seleccionadas:`, {
+      fechaInicio: filtroFechas.fechaInicio.toISOString(),
+      fechaFin: filtroFechas.fechaFin.toISOString(),
+      diasDiferencia: Math.ceil((filtroFechas.fechaFin.getTime() - filtroFechas.fechaInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1
     });
+  }, [filtroFechas]);
 
-    return { fechaInicio, fechaFin };
-  }, [periodoSeleccionado]);
-
-  // Cargar datos del API
+  // Cargar datos del API cuando cambien las fechas
   useEffect(() => {
-    // Delay de 500ms para evitar peticiones simultáneas
     const timer = setTimeout(() => {
       cargarDatos();
-    }, 500);
+    }, 300); // Debounce para evitar múltiples llamadas
 
     return () => clearTimeout(timer);
-  }, [fechasPeriodo]);
+  }, [filtroFechas]);
 
   const cargarDatos = async () => {
     try {
@@ -167,39 +122,24 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
       // Preparar filtros para la API
       const filtros: IFiltrosCaja = {
         tipoMovimiento: TipoMovimiento.SALIDA,
-        fechaInicio: fechasPeriodo.fechaInicio.toISOString().split('T')[0],
-        fechaFin: fechasPeriodo.fechaFin.toISOString().split('T')[0],
+        fechaInicio: filtroFechas.fechaInicio.toISOString().split('T')[0],
+        fechaFin: filtroFechas.fechaFin.toISOString().split('T')[0],
         limit: 1000 // Obtener todos los registros para el gráfico
       };
 
-      let response = await obtenerMovimientos(filtros);
-      let movimientos = response.data?.movimientos || [];
-      
-      // Si no hay datos en el período actual, usar fechas de fallback
-      if (movimientos.length === 0) {
-        console.log('🔄 No hay datos en el período actual, usando fechas de fallback...');
-        const fechasFallback = obtenerFechasFallback(periodoSeleccionado);
-        
-        const filtrosFallback: IFiltrosCaja = {
-          tipoMovimiento: TipoMovimiento.SALIDA,
-          fechaInicio: fechasFallback.fechaInicio.toISOString().split('T')[0],
-          fechaFin: fechasFallback.fechaFin.toISOString().split('T')[0],
-          limit: 1000
-        };
+      console.log('🔍 Cargando datos de distribución con filtros:', filtros);
 
-        response = await obtenerMovimientos(filtrosFallback);
-        movimientos = response.data?.movimientos || [];
-        
-        console.log('📊 Datos de fallback obtenidos:', movimientos.length, 'movimientos');
-      }
+      const response = await obtenerMovimientos(filtros);
+      const movimientos = response.data?.movimientos || [];
       
+      console.log('📊 Datos de distribución obtenidos:', movimientos.length, 'movimientos');
       setDatosOriginales(movimientos);
     } catch (err) {
+      console.error('❌ Error cargando datos de distribución:', err);
       setConfiguracion(prev => ({ 
         ...prev, 
         error: 'Error al cargar los datos del gráfico de distribución' 
       }));
-      console.error('Error cargando datos del gráfico de distribución:', err);
     } finally {
       setConfiguracion(prev => ({ ...prev, loading: false }));
     }
@@ -506,11 +446,6 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
     cutout: configuracion.tipoGrafico === 'doughnut' ? '60%' : '0%',
   };
 
-  // Manejar cambio de período
-  const handleCambioPeriodo = (nuevoPeriodo: PeriodoGrafico) => {
-    setPeriodoSeleccionado(nuevoPeriodo);
-  };
-
   // Manejar cambio de modo de vista
   const toggleModoVista = () => {
     setConfiguracion(prev => ({
@@ -519,6 +454,11 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
       categoriaExpandida: null,
       categoriaCajaExpandida: null
     }));
+  };
+
+  // Manejar cambio de fechas
+  const handleCambioFechas = (nuevasFechas: FiltroFechas) => {
+    setFiltroFechas(nuevasFechas);
   };
 
   // Render del componente
@@ -550,61 +490,54 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
     );
   }
 
-  const tienedatos = datosDistribucion.totales.totalGastos > 0;
+  const tieneDatos = datosDistribucion.totales.totalGastos > 0;
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Selector de Período */}
-      {showPeriodSelector && (
-        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
-              🍰 Distribución de Gastos por Categoría
-            </h3>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={toggleModoVista}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  configuracion.modoVista === 'categoria'
-                    ? 'bg-purple-500 text-white'
-                    : 'bg-blue-500 text-white'
-                }`}
-              >
-                {configuracion.modoVista === 'categoria' ? '🏢 Por Área Negocio' : '⚙️ Por Tipo Costo'}
-              </button>
-              <button
-                onClick={() => setConfiguracion(prev => ({ ...prev, mostrarDetalles: !prev.mostrarDetalles }))}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                  configuracion.mostrarDetalles
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {configuracion.mostrarDetalles ? '📋 Ocultar detalles' : '📋 Mostrar detalles'}
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {Object.values(PeriodoGrafico).map((periodoItem) => (
-              <button
-                key={periodoItem}
-                onClick={() => handleCambioPeriodo(periodoItem)}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  periodoSeleccionado === periodoItem
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {CONFIGURACION_PERIODOS[periodoItem].label}
-              </button>
-            ))}
-          </div>
+      {/* Selector de fechas */}
+      {showDateSelector && (
+        <div className="mb-6">
+          <SelectorFechas
+            filtroFechas={filtroFechas}
+            onCambioFechas={handleCambioFechas}
+            className="mb-4"
+          />
         </div>
       )}
 
+      {/* Controles de configuración */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">
+            🍰 Distribución de Gastos por Categoría
+          </h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={toggleModoVista}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                configuracion.modoVista === 'categoria'
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-blue-500 text-white'
+              }`}
+            >
+              {configuracion.modoVista === 'categoria' ? '🏢 Por Área Negocio' : '⚙️ Por Tipo Costo'}
+            </button>
+            <button
+              onClick={() => setConfiguracion(prev => ({ ...prev, mostrarDetalles: !prev.mostrarDetalles }))}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                configuracion.mostrarDetalles
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {configuracion.mostrarDetalles ? '📋 Ocultar detalles' : '📋 Mostrar detalles'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Resumen de datos */}
-      {tienedatos && (
+      {tieneDatos && (
         <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
@@ -622,7 +555,7 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
             <div className="text-center">
               <p className="text-sm text-gray-600">Período</p>
               <p className="text-xl font-bold text-gray-800">
-                {CONFIGURACION_PERIODOS[periodoSeleccionado].label}
+                {obtenerDescripcionPeriodo(filtroFechas.fechaInicio, filtroFechas.fechaFin)}
               </p>
             </div>
           </div>
@@ -631,12 +564,12 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
 
       {/* Gráfico */}
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        {!tienedatos ? (
+        {!tieneDatos ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center text-gray-500">
               <div className="text-4xl mb-2">🍰</div>
-              <p>No hay datos disponibles para el período seleccionado</p>
-              <p className="text-xs mt-2">Intenta seleccionar un período diferente</p>
+              <p className="text-lg font-medium">No hay datos para mostrar</p>
+              <p className="text-sm">Intenta seleccionar un rango de fechas diferente</p>
             </div>
           </div>
         ) : (
@@ -661,7 +594,7 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
         )}
 
         {/* Estadísticas detalladas con expansión - Vista por CategoriaCaja */}
-        {tienedatos && configuracion.modoVista === 'categoria' && (
+        {tieneDatos && configuracion.modoVista === 'categoria' && (
           <div className="mt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Administrativo */}
@@ -675,17 +608,17 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.administrativo.textClass}`}>
+                      <div className={`w-3 h-3 rounded-full bg-purple-500 mr-2`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.administrativo.textClass}`}>
                           {COLORES_CATEGORIA_CAJA.administrativo.label}
-                        </p>
-                        <p className="text-lg font-bold text-purple-900">
+                        </div>
+                        <div className="text-xs text-purple-600">
                           {formatearSoles(datosDistribucion.porCategoriaCaja.administrativo)}
-                        </p>
-                        <p className="text-xs text-purple-600">
+                        </div>
+                        <div className="text-xs text-purple-500">
                           {formatearPorcentaje(datosDistribucion.porcentajesCategoriaCaja.administrativo)}
-                        </p>
+                        </div>
                       </div>
                     </div>
                     <svg 
@@ -704,16 +637,16 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                   <div className="p-3 bg-purple-50">
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
-                        <span>👥 Mano de Obra:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.manoObra)}</span>
+                        <span>Mano de Obra:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.manoObra)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>📦 Materia Prima:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.materiaPrima)}</span>
+                        <span>Materia Prima:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.materiaPrima)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>🔧 Otros Gastos:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.otrosGastos)}</span>
+                        <span>Otros Gastos:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.administrativo.otrosGastos)}</span>
                       </div>
                     </div>
                   </div>
@@ -731,17 +664,17 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.finanzas.textClass}`}>
+                      <div className={`w-3 h-3 rounded-full bg-green-500 mr-2`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.finanzas.textClass}`}>
                           {COLORES_CATEGORIA_CAJA.finanzas.label}
-                        </p>
-                        <p className="text-lg font-bold text-green-900">
+                        </div>
+                        <div className="text-xs text-green-600">
                           {formatearSoles(datosDistribucion.porCategoriaCaja.finanzas)}
-                        </p>
-                        <p className="text-xs text-green-600">
+                        </div>
+                        <div className="text-xs text-green-500">
                           {formatearPorcentaje(datosDistribucion.porcentajesCategoriaCaja.finanzas)}
-                        </p>
+                        </div>
                       </div>
                     </div>
                     <svg 
@@ -760,16 +693,16 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                   <div className="p-3 bg-green-50">
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
-                        <span>👥 Mano de Obra:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.manoObra)}</span>
+                        <span>Mano de Obra:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.manoObra)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>📦 Materia Prima:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.materiaPrima)}</span>
+                        <span>Materia Prima:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.materiaPrima)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>🔧 Otros Gastos:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.otrosGastos)}</span>
+                        <span>Otros Gastos:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.finanzas.otrosGastos)}</span>
                       </div>
                     </div>
                   </div>
@@ -787,17 +720,17 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.operaciones.textClass}`}>
+                      <div className={`w-3 h-3 rounded-full bg-blue-500 mr-2`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.operaciones.textClass}`}>
                           {COLORES_CATEGORIA_CAJA.operaciones.label}
-                        </p>
-                        <p className="text-lg font-bold text-blue-900">
+                        </div>
+                        <div className="text-xs text-blue-600">
                           {formatearSoles(datosDistribucion.porCategoriaCaja.operaciones)}
-                        </p>
-                        <p className="text-xs text-blue-600">
+                        </div>
+                        <div className="text-xs text-blue-500">
                           {formatearPorcentaje(datosDistribucion.porcentajesCategoriaCaja.operaciones)}
-                        </p>
+                        </div>
                       </div>
                     </div>
                     <svg 
@@ -816,16 +749,16 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                   <div className="p-3 bg-blue-50">
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
-                        <span>👥 Mano de Obra:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.manoObra)}</span>
+                        <span>Mano de Obra:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.manoObra)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>📦 Materia Prima:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.materiaPrima)}</span>
+                        <span>Materia Prima:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.materiaPrima)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>🔧 Otros Gastos:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.otrosGastos)}</span>
+                        <span>Otros Gastos:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.operaciones.otrosGastos)}</span>
                       </div>
                     </div>
                   </div>
@@ -843,17 +776,17 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-                      <div className="flex-1">
-                        <p className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.ventas.textClass}`}>
+                      <div className={`w-3 h-3 rounded-full bg-red-500 mr-2`}></div>
+                      <div>
+                        <div className={`text-sm font-medium ${COLORES_CATEGORIA_CAJA.ventas.textClass}`}>
                           {COLORES_CATEGORIA_CAJA.ventas.label}
-                        </p>
-                        <p className="text-lg font-bold text-red-900">
+                        </div>
+                        <div className="text-xs text-red-600">
                           {formatearSoles(datosDistribucion.porCategoriaCaja.ventas)}
-                        </p>
-                        <p className="text-xs text-red-600">
+                        </div>
+                        <div className="text-xs text-red-500">
                           {formatearPorcentaje(datosDistribucion.porcentajesCategoriaCaja.ventas)}
-                        </p>
+                        </div>
                       </div>
                     </div>
                     <svg 
@@ -872,16 +805,16 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                   <div className="p-3 bg-red-50">
                     <div className="space-y-2 text-xs">
                       <div className="flex justify-between">
-                        <span>👥 Mano de Obra:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.manoObra)}</span>
+                        <span>Mano de Obra:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.manoObra)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>📦 Materia Prima:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.materiaPrima)}</span>
+                        <span>Materia Prima:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.materiaPrima)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>🔧 Otros Gastos:</span>
-                        <span className="font-semibold">{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.otrosGastos)}</span>
+                        <span>Otros Gastos:</span>
+                        <span>{formatearSoles(datosDistribucion.porCategoriaCaja.desglosePorTipoCosto.ventas.otrosGastos)}</span>
                       </div>
                     </div>
                   </div>
@@ -892,14 +825,179 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
         )}
 
         {/* Estadísticas detalladas con expansión - Vista por TipoCosto (vista original) */}
-        {tienedatos && configuracion.modoVista === 'tipoCosto' && (
+        {tieneDatos && configuracion.modoVista === 'tipoCosto' && (
           <div className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{/* Contenido de la vista original por TipoCosto */}</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Mano de Obra */}
+              <div className="bg-red-50 border border-red-200 rounded-lg overflow-hidden">
+                <div 
+                  className="p-3 cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => setConfiguracion(prev => ({ 
+                    ...prev, 
+                    categoriaExpandida: prev.categoriaExpandida === 'manoObra' ? null : 'manoObra' 
+                  }))}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                      <div>
+                        <div className="text-sm font-medium text-red-800">
+                          {COLORES_CATEGORIAS.manoObra.label}
+                        </div>
+                        <div className="text-xs text-red-600">
+                          {formatearSoles(datosDistribucion.categorias.manoObra)}
+                        </div>
+                        <div className="text-xs text-red-500">
+                          {formatearPorcentaje(datosDistribucion.porcentajes.manoObra)}
+                        </div>
+                      </div>
+                    </div>
+                    <svg 
+                      className={`w-4 h-4 text-red-600 transition-transform ${
+                        configuracion.categoriaExpandida === 'manoObra' ? 'rotate-180' : ''
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {configuracion.categoriaExpandida === 'manoObra' && (
+                  <div className="p-3 bg-red-50 border-t border-red-200">
+                    <div className="space-y-1 text-xs">
+                      {datosDistribucion.detallesPorCategoria.manoObra.slice(0, 5).map((detalle, index) => (
+                        <div key={index} className="flex justify-between">
+                          <span className="truncate mr-2">{detalle.descripcion}</span>
+                          <span className="text-red-700">{formatearSoles(detalle.monto)}</span>
+                        </div>
+                      ))}
+                      {datosDistribucion.detallesPorCategoria.manoObra.length > 5 && (
+                        <div className="text-red-500 text-center">
+                          ... y {datosDistribucion.detallesPorCategoria.manoObra.length - 5} más
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Materia Prima */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg overflow-hidden">
+                <div 
+                  className="p-3 cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => setConfiguracion(prev => ({ 
+                    ...prev, 
+                    categoriaExpandida: prev.categoriaExpandida === 'materiaPrima' ? null : 'materiaPrima' 
+                  }))}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                      <div>
+                        <div className="text-sm font-medium text-blue-800">
+                          {COLORES_CATEGORIAS.materiaPrima.label}
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          {formatearSoles(datosDistribucion.categorias.materiaPrima)}
+                        </div>
+                        <div className="text-xs text-blue-500">
+                          {formatearPorcentaje(datosDistribucion.porcentajes.materiaPrima)}
+                        </div>
+                      </div>
+                    </div>
+                    <svg 
+                      className={`w-4 h-4 text-blue-600 transition-transform ${
+                        configuracion.categoriaExpandida === 'materiaPrima' ? 'rotate-180' : ''
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {configuracion.categoriaExpandida === 'materiaPrima' && (
+                  <div className="p-3 bg-blue-50 border-t border-blue-200">
+                    <div className="space-y-1 text-xs">
+                      {datosDistribucion.detallesPorCategoria.materiaPrima.slice(0, 5).map((detalle, index) => (
+                        <div key={index} className="flex justify-between">
+                          <span className="truncate mr-2">{detalle.descripcion}</span>
+                          <span className="text-blue-700">{formatearSoles(detalle.monto)}</span>
+                        </div>
+                      ))}
+                      {datosDistribucion.detallesPorCategoria.materiaPrima.length > 5 && (
+                        <div className="text-blue-500 text-center">
+                          ... y {datosDistribucion.detallesPorCategoria.materiaPrima.length - 5} más
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Otros Gastos */}
+              <div className="bg-green-50 border border-green-200 rounded-lg overflow-hidden">
+                <div 
+                  className="p-3 cursor-pointer hover:bg-green-100 transition-colors"
+                  onClick={() => setConfiguracion(prev => ({ 
+                    ...prev, 
+                    categoriaExpandida: prev.categoriaExpandida === 'otrosGastos' ? null : 'otrosGastos' 
+                  }))}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                      <div>
+                        <div className="text-sm font-medium text-green-800">
+                          {COLORES_CATEGORIAS.otrosGastos.label}
+                        </div>
+                        <div className="text-xs text-green-600">
+                          {formatearSoles(datosDistribucion.categorias.otrosGastos)}
+                        </div>
+                        <div className="text-xs text-green-500">
+                          {formatearPorcentaje(datosDistribucion.porcentajes.otrosGastos)}
+                        </div>
+                      </div>
+                    </div>
+                    <svg 
+                      className={`w-4 h-4 text-green-600 transition-transform ${
+                        configuracion.categoriaExpandida === 'otrosGastos' ? 'rotate-180' : ''
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+                {configuracion.categoriaExpandida === 'otrosGastos' && (
+                  <div className="p-3 bg-green-50 border-t border-green-200">
+                    <div className="space-y-1 text-xs">
+                      {datosDistribucion.detallesPorCategoria.otrosGastos.slice(0, 5).map((detalle, index) => (
+                        <div key={index} className="flex justify-between">
+                          <span className="truncate mr-2">{detalle.descripcion}</span>
+                          <span className="text-green-700">{formatearSoles(detalle.monto)}</span>
+                        </div>
+                      ))}
+                      {datosDistribucion.detallesPorCategoria.otrosGastos.length > 5 && (
+                        <div className="text-green-500 text-center">
+                          ... y {datosDistribucion.detallesPorCategoria.otrosGastos.length - 5} más
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
         {/* Tabla resumen completo (opcional - toggle) */}
-        {tienedatos && configuracion.mostrarDetalles && (
+        {tieneDatos && configuracion.mostrarDetalles && (
           <div className="mt-6">
             <div className="bg-gray-50 p-4 rounded-lg">
               <div className="flex items-center justify-between mb-4">
@@ -919,21 +1017,20 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 {datosDistribucion.detallesPorCategoria.manoObra.length > 0 && (
                   <div>
                     <h5 className="font-medium text-red-800 mb-3 flex items-center">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-                      Mano de Obra ({datosDistribucion.detallesPorCategoria.manoObra.length})
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
+                      {COLORES_CATEGORIAS.manoObra.label}
                     </h5>
                     <div className="space-y-2">
                       {datosDistribucion.detallesPorCategoria.manoObra.map((detalle, index) => (
-                        <div key={index} className="bg-white p-3 rounded border-l-4 border-red-500">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1 pr-2">
-                              <p className="text-sm font-medium text-gray-800">{detalle.descripcion}</p>
-                              <p className="text-xs text-gray-500">{detalle.cantidad} mov.</p>
+                        <div key={index} className="flex justify-between items-center p-2 bg-white rounded text-sm">
+                          <div>
+                            <div className="font-medium text-gray-900">{detalle.descripcion}</div>
+                            <div className="text-xs text-gray-500">
+                              {detalle.cantidad} movimiento{detalle.cantidad !== 1 ? 's' : ''} • {formatearPorcentaje(detalle.porcentaje)}
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-gray-900">{formatearSoles(detalle.monto)}</p>
-                              <p className="text-xs text-red-600">{formatearPorcentaje(detalle.porcentaje)}</p>
-                            </div>
+                          </div>
+                          <div className="text-red-700 font-medium">
+                            {formatearSoles(detalle.monto)}
                           </div>
                         </div>
                       ))}
@@ -945,21 +1042,20 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 {datosDistribucion.detallesPorCategoria.materiaPrima.length > 0 && (
                   <div>
                     <h5 className="font-medium text-blue-800 mb-3 flex items-center">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                      Materia Prima ({datosDistribucion.detallesPorCategoria.materiaPrima.length})
+                      <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                      {COLORES_CATEGORIAS.materiaPrima.label}
                     </h5>
                     <div className="space-y-2">
                       {datosDistribucion.detallesPorCategoria.materiaPrima.map((detalle, index) => (
-                        <div key={index} className="bg-white p-3 rounded border-l-4 border-blue-500">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1 pr-2">
-                              <p className="text-sm font-medium text-gray-800">{detalle.descripcion}</p>
-                              <p className="text-xs text-gray-500">{detalle.cantidad} mov.</p>
+                        <div key={index} className="flex justify-between items-center p-2 bg-white rounded text-sm">
+                          <div>
+                            <div className="font-medium text-gray-900">{detalle.descripcion}</div>
+                            <div className="text-xs text-gray-500">
+                              {detalle.cantidad} movimiento{detalle.cantidad !== 1 ? 's' : ''} • {formatearPorcentaje(detalle.porcentaje)}
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-gray-900">{formatearSoles(detalle.monto)}</p>
-                              <p className="text-xs text-blue-600">{formatearPorcentaje(detalle.porcentaje)}</p>
-                            </div>
+                          </div>
+                          <div className="text-blue-700 font-medium">
+                            {formatearSoles(detalle.monto)}
                           </div>
                         </div>
                       ))}
@@ -971,21 +1067,20 @@ const GraficoDistribucionGastos: React.FC<Props> = ({
                 {datosDistribucion.detallesPorCategoria.otrosGastos.length > 0 && (
                   <div>
                     <h5 className="font-medium text-green-800 mb-3 flex items-center">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                      Otros Gastos ({datosDistribucion.detallesPorCategoria.otrosGastos.length})
+                      <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                      {COLORES_CATEGORIAS.otrosGastos.label}
                     </h5>
                     <div className="space-y-2">
                       {datosDistribucion.detallesPorCategoria.otrosGastos.map((detalle, index) => (
-                        <div key={index} className="bg-white p-3 rounded border-l-4 border-green-500">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1 pr-2">
-                              <p className="text-sm font-medium text-gray-800">{detalle.descripcion}</p>
-                              <p className="text-xs text-gray-500">{detalle.cantidad} mov.</p>
+                        <div key={index} className="flex justify-between items-center p-2 bg-white rounded text-sm">
+                          <div>
+                            <div className="font-medium text-gray-900">{detalle.descripcion}</div>
+                            <div className="text-xs text-gray-500">
+                              {detalle.cantidad} movimiento{detalle.cantidad !== 1 ? 's' : ''} • {formatearPorcentaje(detalle.porcentaje)}
                             </div>
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-gray-900">{formatearSoles(detalle.monto)}</p>
-                              <p className="text-xs text-green-600">{formatearPorcentaje(detalle.porcentaje)}</p>
-                            </div>
+                          </div>
+                          <div className="text-green-700 font-medium">
+                            {formatearSoles(detalle.monto)}
                           </div>
                         </div>
                       ))}

@@ -14,13 +14,15 @@ import {
   DatosRankingGastos,
   ItemRankingGasto,
   ConfiguracionRanking,
-  PeriodoGrafico,
-  CONFIGURACION_PERIODOS,
-  COLORES_RANKING
+  FiltroFechas,
+  COLORES_RANKING,
+  generarPresetsPeriodos
 } from '../../types/graficos';
-import { IMovimientoCaja, IFiltrosCaja, TipoMovimiento } from '../../types/caja';
+import SelectorFechas from '../common/SelectorFechas';
+import { IMovimientoCaja, TipoMovimiento, IFiltrosCaja } from '../../types/caja';
 import { obtenerMovimientos } from '../../utils/cajaApi';
 
+// Registrar componentes de Chart.js
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -45,72 +47,50 @@ const truncarTexto = (texto: string, maxLength: number = 30): string => {
   return texto.length > maxLength ? texto.substring(0, maxLength) + '...' : texto;
 };
 
-// Función helper para obtener fechas de fallback si no hay datos
-const obtenerFechasFallback = (periodo: PeriodoGrafico): { fechaInicio: Date; fechaFin: Date } => {
-  // Si no hay datos en el período actual, usar septiembre 2025 donde sabemos que hay datos
-  switch (periodo) {
-    case PeriodoGrafico.SEMANA:
-      return {
-        fechaInicio: new Date('2025-09-14'),
-        fechaFin: new Date('2025-09-20')
-      };
-    case PeriodoGrafico.MES:
-      return {
-        fechaInicio: new Date('2025-09-01'),
-        fechaFin: new Date('2025-09-30')
-      };
-    case PeriodoGrafico.ANUAL:
-      return {
-        fechaInicio: new Date('2025-01-01'),
-        fechaFin: new Date('2025-12-31')
-      };
-    default:
-      return {
-        fechaInicio: new Date('2025-09-14'),
-        fechaFin: new Date('2025-09-20')
-      };
-  }
-};
-
-// Función helper para obtener descripción dinámica del período
-const obtenerDescripcionPeriodo = (periodo: PeriodoGrafico, fechaInicio: Date, fechaFin: Date): string => {
-  const ahora = new Date();
-  const añoActual = ahora.getFullYear();
-  const mesActual = ahora.getMonth();
+// Función helper para obtener descripción del período
+const obtenerDescripcionPeriodo = (fechaInicio: Date, fechaFin: Date): string => {
+  const opciones: Intl.DateTimeFormatOptions = { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  };
   
-  switch (periodo) {
-    case PeriodoGrafico.HOY:
-      return `Hoy (${fechaInicio.getDate()}/${fechaInicio.getMonth() + 1}/${fechaInicio.getFullYear()})`;
-    
-    case PeriodoGrafico.SEMANA:
-      return `Últimos 7 días (${fechaInicio.getDate()}/${fechaInicio.getMonth() + 1} - ${fechaFin.getDate()}/${fechaFin.getMonth() + 1})`;
-    
-    case PeriodoGrafico.MES:
-      const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      return `${meses[mesActual]} ${añoActual}`;
-    
-    case PeriodoGrafico.ANUAL:
-      return `Año ${añoActual}`;
-    
-    default:
-      return 'Período personalizado';
+  const fechaInicioStr = fechaInicio.toLocaleDateString('es-PE', opciones);
+  const fechaFinStr = fechaFin.toLocaleDateString('es-PE', opciones);
+  
+  // Si son el mismo día
+  if (fechaInicio.toDateString() === fechaFin.toDateString()) {
+    return `${fechaInicioStr}`;
   }
+  
+  return `${fechaInicioStr} - ${fechaFinStr}`;
 };
 
 interface Props {
   className?: string;
-  periodo?: PeriodoGrafico;
-  showPeriodSelector?: boolean;
+  fechasIniciales?: FiltroFechas;
+  showDateSelector?: boolean;
   limitarItems?: number;
 }
 
 const GraficoRankingGastos: React.FC<Props> = ({ 
   className = "", 
-  periodo = PeriodoGrafico.SEMANA,
-  showPeriodSelector = true,
+  fechasIniciales,
+  showDateSelector = true,
   limitarItems = 10
 }) => {
+  // Generar fechas por defecto (últimos 7 días)
+  const fechasDefecto = React.useMemo(() => {
+    if (fechasIniciales) return fechasIniciales;
+    
+    const presets = generarPresetsPeriodos();
+    const presetUltimos7Dias = presets.find((p) => p.id === 'ultimos7dias');
+    return presetUltimos7Dias?.getFechas() || {
+      fechaInicio: new Date(new Date().setDate(new Date().getDate() - 6)),
+      fechaFin: new Date()
+    };
+  }, [fechasIniciales]);
+
   const [configuracion, setConfiguracion] = useState<ConfiguracionRanking>({
     mostrarCantidad: true,
     mostrarPromedio: false,
@@ -121,78 +101,26 @@ const GraficoRankingGastos: React.FC<Props> = ({
     error: null
   });
 
-  const [periodoSeleccionado, setPeriodoSeleccionado] = useState<PeriodoGrafico>(periodo);
+  const [filtroFechas, setFiltroFechas] = useState<FiltroFechas>(fechasDefecto);
   const [datosOriginales, setDatosOriginales] = useState<IMovimientoCaja[]>([]);
 
-  // Calcular fechas según el período seleccionado - DINÁMICO
-  const fechasPeriodo = useMemo(() => {
-    const ahora = new Date();
-    let fechaInicio: Date;
-    let fechaFin: Date;
-
-    switch (periodoSeleccionado) {
-      case PeriodoGrafico.HOY:
-        // Desde las 00:00 hasta las 23:59 de hoy
-        fechaInicio = new Date(ahora);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.SEMANA:
-        // Últimos 7 días desde hoy
-        fechaInicio = new Date(ahora);
-        fechaInicio.setDate(ahora.getDate() - 6); // 6 días atrás + hoy = 7 días
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.MES:
-        // Todo el mes actual
-        fechaInicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      case PeriodoGrafico.ANUAL:
-        // Todo el año actual
-        fechaInicio = new Date(ahora.getFullYear(), 0, 1);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora.getFullYear(), 11, 31);
-        fechaFin.setHours(23, 59, 59, 999);
-        break;
-
-      default:
-        // Fallback: últimos 7 días
-        fechaInicio = new Date(ahora);
-        fechaInicio.setDate(ahora.getDate() - 6);
-        fechaInicio.setHours(0, 0, 0, 0);
-        fechaFin = new Date(ahora);
-        fechaFin.setHours(23, 59, 59, 999);
-    }
-
-    console.log(`📅 FECHAS DINÁMICAS [${periodoSeleccionado}]:`, {
-      fechaInicio: fechaInicio.toISOString(),
-      fechaFin: fechaFin.toISOString(),
-      añoActual: ahora.getFullYear(),
-      mesActual: ahora.getMonth() + 1,
-      díaActual: ahora.getDate()
+  // Log de las fechas seleccionadas para debugging
+  React.useEffect(() => {
+    console.log(`📅 FECHAS SELECCIONADAS:`, {
+      fechaInicio: filtroFechas.fechaInicio.toISOString(),
+      fechaFin: filtroFechas.fechaFin.toISOString(),
+      diasDiferencia: Math.ceil((filtroFechas.fechaFin.getTime() - filtroFechas.fechaInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1
     });
+  }, [filtroFechas]);
 
-    return { fechaInicio, fechaFin };
-  }, [periodoSeleccionado]);
-
-  // Cargar datos del API
+  // Cargar datos del API cuando cambien las fechas
   useEffect(() => {
-    // Delay de 400ms para evitar peticiones simultáneas
     const timer = setTimeout(() => {
       cargarDatos();
-    }, 400);
+    }, 300); // Debounce para evitar múltiples llamadas
 
     return () => clearTimeout(timer);
-  }, [fechasPeriodo]);
+  }, [filtroFechas]);
 
   const cargarDatos = async () => {
     try {
@@ -201,39 +129,24 @@ const GraficoRankingGastos: React.FC<Props> = ({
       // Preparar filtros para la API
       const filtros: IFiltrosCaja = {
         tipoMovimiento: TipoMovimiento.SALIDA,
-        fechaInicio: fechasPeriodo.fechaInicio.toISOString().split('T')[0],
-        fechaFin: fechasPeriodo.fechaFin.toISOString().split('T')[0],
+        fechaInicio: filtroFechas.fechaInicio.toISOString().split('T')[0],
+        fechaFin: filtroFechas.fechaFin.toISOString().split('T')[0],
         limit: 1000 // Obtener todos los registros para el gráfico
       };
 
-      let response = await obtenerMovimientos(filtros);
-      let movimientos = response.data?.movimientos || [];
-      
-      // Si no hay datos en el período actual, usar fechas de fallback
-      if (movimientos.length === 0) {
-        console.log('🔄 No hay datos en el período actual, usando fechas de fallback...');
-        const fechasFallback = obtenerFechasFallback(periodoSeleccionado);
-        
-        const filtrosFallback: IFiltrosCaja = {
-          tipoMovimiento: TipoMovimiento.SALIDA,
-          fechaInicio: fechasFallback.fechaInicio.toISOString().split('T')[0],
-          fechaFin: fechasFallback.fechaFin.toISOString().split('T')[0],
-          limit: 1000
-        };
+      console.log('🔍 Cargando datos con filtros:', filtros);
 
-        response = await obtenerMovimientos(filtrosFallback);
-        movimientos = response.data?.movimientos || [];
-        
-        console.log('📊 Datos de fallback obtenidos:', movimientos.length, 'movimientos');
-      }
+      const response = await obtenerMovimientos(filtros);
+      const movimientos = response.data?.movimientos || [];
       
+      console.log('📊 Datos obtenidos:', movimientos.length, 'movimientos');
       setDatosOriginales(movimientos);
     } catch (err) {
+      console.error('❌ Error cargando datos del ranking:', err);
       setConfiguracion(prev => ({ 
         ...prev, 
         error: 'Error al cargar los datos del ranking de gastos' 
       }));
-      console.error('Error cargando datos del ranking:', err);
     } finally {
       setConfiguracion(prev => ({ ...prev, loading: false }));
     }
@@ -250,20 +163,13 @@ const GraficoRankingGastos: React.FC<Props> = ({
       movimientos: IMovimientoCaja[];
     }>();
 
-    console.log('📊 DEBUGGING - Procesando datos originales para ranking:', datosOriginales);
+    console.log('📊 Procesando datos originales para ranking:', datosOriginales.length);
 
-    datosOriginales.forEach((movimiento, index) => {
+    datosOriginales.forEach((movimiento) => {
       const descripcion = movimiento.descripcion || 'Sin descripción';
       const monto = movimiento.monto || 0;
       const categoria = movimiento.categoria || 'sin_categoria';
       const tipoCosto = movimiento.tipoCosto || 'sin_tipo';
-
-      console.log(`📊 DEBUGGING - Movimiento ${index}:`, {
-        descripcion,
-        monto,
-        categoria,
-        tipoCosto
-      });
 
       const existing = gastosAgrupados.get(descripcion) || {
         montoTotal: 0,
@@ -276,8 +182,8 @@ const GraficoRankingGastos: React.FC<Props> = ({
       gastosAgrupados.set(descripcion, {
         montoTotal: existing.montoTotal + monto,
         cantidadMovimientos: existing.cantidadMovimientos + 1,
-        categoria: existing.categoria, // usar el primero encontrado
-        tipoCosto: existing.tipoCosto, // usar el primero encontrado
+        categoria: existing.categoria,
+        tipoCosto: existing.tipoCosto,
         movimientos: [...existing.movimientos, movimiento]
       });
     });
@@ -324,7 +230,7 @@ const GraficoRankingGastos: React.FC<Props> = ({
     const estadisticas = {
       gastoMayor: ranking.length > 0 ? ranking[0] : null,
       gastoMenor: ranking.length > 0 ? ranking[ranking.length - 1] : null,
-      promedioGeneral: totalGastos / datosOriginales.length
+      promedioGeneral: datosOriginales.length > 0 ? totalGastos / datosOriginales.length : 0
     };
 
     const resultado: DatosRankingGastos = {
@@ -335,17 +241,15 @@ const GraficoRankingGastos: React.FC<Props> = ({
         cantidadDescripciones: gastosAgrupados.size
       },
       filtros: {
-        periodo: periodoSeleccionado,
-        fechaInicio: fechasPeriodo.fechaInicio.toISOString().split('T')[0],
-        fechaFin: fechasPeriodo.fechaFin.toISOString().split('T')[0]
+        descripcion: obtenerDescripcionPeriodo(filtroFechas.fechaInicio, filtroFechas.fechaFin),
+        fechaInicio: filtroFechas.fechaInicio.toISOString().split('T')[0],
+        fechaFin: filtroFechas.fechaFin.toISOString().split('T')[0]
       },
       estadisticas
     };
 
-    console.log('📊 DEBUGGING - Datos ranking calculados:', resultado);
-
     return resultado;
-  }, [datosOriginales, configuracion.ordenarPor, configuracion.direccion, configuracion.limitarItems, periodoSeleccionado, fechasPeriodo]);
+  }, [datosOriginales, configuracion.ordenarPor, configuracion.direccion, configuracion.limitarItems, filtroFechas]);
 
   // Configuración del gráfico Chart.js
   const chartData = {
@@ -369,11 +273,11 @@ const GraficoRankingGastos: React.FC<Props> = ({
     indexAxis: 'y' as const, // Barras horizontales
     plugins: {
       legend: {
-        display: false, // No necesitamos leyenda para ranking
+        display: false,
       },
       title: {
         display: true,
-        text: `Ranking de Gastos - ${obtenerDescripcionPeriodo(periodoSeleccionado, fechasPeriodo.fechaInicio, fechasPeriodo.fechaFin)}`,
+        text: `Ranking de Gastos - ${obtenerDescripcionPeriodo(filtroFechas.fechaInicio, filtroFechas.fechaFin)}`,
         font: {
           size: 16,
           weight: 'bold'
@@ -426,14 +330,14 @@ const GraficoRankingGastos: React.FC<Props> = ({
     },
   };
 
-  // Manejar cambio de período
-  const handleCambioPeriodo = (nuevoPeriodo: PeriodoGrafico) => {
-    setPeriodoSeleccionado(nuevoPeriodo);
-  };
-
   // Manejar cambio de configuración
   const handleConfigChange = (key: keyof ConfiguracionRanking, value: any) => {
     setConfiguracion(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Manejar cambio de fechas
+  const handleCambioFechas = (nuevasFechas: FiltroFechas) => {
+    setFiltroFechas(nuevasFechas);
   };
 
   // Render del componente
@@ -469,14 +373,28 @@ const GraficoRankingGastos: React.FC<Props> = ({
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Controles y configuración */}
-      {showPeriodSelector && (
-        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
-              📊 Ranking de Gastos por Descripción
-            </h3>
+      {/* Selector de fechas */}
+      {showDateSelector && (
+        <div className="mb-6">
+          <SelectorFechas
+            filtroFechas={filtroFechas}
+            onCambioFechas={handleCambioFechas}
+            className="mb-4"
+          />
+        </div>
+      )}
+
+      {/* Controles de configuración */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">
+            📊 Configuración del Ranking
+          </h3>
+          <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">
+                Mostrar:
+              </label>
               <select
                 value={configuracion.limitarItems}
                 onChange={(e) => handleConfigChange('limitarItems', parseInt(e.target.value))}
@@ -484,67 +402,55 @@ const GraficoRankingGastos: React.FC<Props> = ({
               >
                 <option value={5}>Top 5</option>
                 <option value={10}>Top 10</option>
-                <option value={15}>Top 15</option>
+                <option value={20}>Top 20</option>
                 <option value={0}>Todos</option>
               </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">
+                Ordenar por:
+              </label>
               <select
                 value={configuracion.ordenarPor}
                 onChange={(e) => handleConfigChange('ordenarPor', e.target.value)}
                 className="px-3 py-1 border rounded-md text-sm"
               >
-                <option value="monto">Por Monto</option>
-                <option value="cantidad">Por Cantidad</option>
-                <option value="promedio">Por Promedio</option>
+                <option value="monto">Monto Total</option>
+                <option value="cantidad">Cantidad</option>
+                <option value="promedio">Promedio</option>
               </select>
             </div>
           </div>
-          
-          <div className="flex flex-wrap gap-2">
-            {Object.values(PeriodoGrafico).map((periodoItem) => (
-              <button
-                key={periodoItem}
-                onClick={() => handleCambioPeriodo(periodoItem)}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  periodoSeleccionado === periodoItem
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {CONFIGURACION_PERIODOS[periodoItem].label}
-              </button>
-            ))}
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Estadísticas resumen */}
       {tieneData && (
         <div className="mb-6 bg-white p-4 rounded-lg shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <p className="text-sm text-gray-600">Total Gastado</p>
-              <p className="text-xl font-bold text-gray-800">
+              <div className="text-2xl font-bold text-gray-900">
                 {formatearSoles(datosRanking.totales.totalGastos)}
-              </p>
+              </div>
+              <div className="text-sm text-gray-600">Total Gastado</div>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-600">Descripciones</p>
-              <p className="text-xl font-bold text-gray-800">
+              <div className="text-2xl font-bold text-blue-600">
                 {datosRanking.totales.cantidadDescripciones}
-              </p>
+              </div>
+              <div className="text-sm text-gray-600">Descripciones</div>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-600">Gasto Mayor</p>
-              <p className="text-lg font-bold text-green-600">
-                {datosRanking.estadisticas.gastoMayor ? 
-                  formatearSoles(datosRanking.estadisticas.gastoMayor.montoTotal) : 'N/A'}
-              </p>
+              <div className="text-2xl font-bold text-green-600">
+                {datosRanking.estadisticas.gastoMayor ? formatearSoles(datosRanking.estadisticas.gastoMayor.montoTotal) : 'N/A'}
+              </div>
+              <div className="text-sm text-gray-600">Gasto Mayor</div>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-600">Promedio General</p>
-              <p className="text-lg font-bold text-blue-600">
-                {formatearSoles(datosRanking.estadisticas.promedioGeneral)}
-              </p>
+              <div className="text-2xl font-bold text-purple-600">
+                {formatearSoles(datosRanking.estadisticas.promedioGeneral || 0)}
+              </div>
+              <div className="text-sm text-gray-600">Promedio General</div>
             </div>
           </div>
         </div>
@@ -555,43 +461,62 @@ const GraficoRankingGastos: React.FC<Props> = ({
         {!tieneData ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center text-gray-500">
-              <div className="text-4xl mb-2">📊</div>
-              <p>No hay datos disponibles para el período seleccionado</p>
-              <p className="text-xs mt-2">Intenta seleccionar un período diferente</p>
+              <div className="text-4xl mb-4">📊</div>
+              <p className="text-lg font-medium">No hay datos para mostrar</p>
+              <p className="text-sm">Intenta seleccionar un rango de fechas diferente</p>
             </div>
           </div>
         ) : (
-          <div className="relative h-96">
+          <div className="h-96">
             <Bar data={chartData} options={chartOptions} />
           </div>
         )}
 
-        {/* Lista detallada */}
+        {/* Tabla de detalles */}
         {tieneData && (
-          <div className="mt-6">
-            <h4 className="text-lg font-semibold text-gray-800 mb-4">Detalle del Ranking</h4>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {datosRanking.ranking.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                  <div className="flex items-center">
-                    <div 
-                      className="w-4 h-4 rounded mr-3" 
-                      style={{ backgroundColor: item.color }}
-                    ></div>
-                    <div>
-                      <p className="font-medium text-gray-800">{item.descripcion}</p>
-                      <p className="text-xs text-gray-600">
-                        {item.cantidadMovimientos} mov. • {item.categoria} • {item.tipoCosto}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900">{formatearSoles(item.montoTotal)}</p>
-                    <p className="text-xs text-gray-600">{item.porcentaje.toFixed(1)}%</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="mt-6 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Descripción
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Monto Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Cantidad
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Promedio
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    %
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {datosRanking.ranking.map((item, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {item.descripcion}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {formatearSoles(item.montoTotal)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.cantidadMovimientos}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatearSoles(item.promedioMonto)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {item.porcentaje.toFixed(1)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

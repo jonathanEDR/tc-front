@@ -15,7 +15,7 @@ export interface DatosGraficoCaja {
 }
 
 export interface ConfiguracionGrafico {
-  periodoSeleccionado: PeriodoGrafico;
+  periodoSeleccionado?: PeriodoGrafico | string; // Hacer opcional y permitir strings
   fechaInicio?: Date;
   fechaFin?: Date;
   loading: boolean;
@@ -238,7 +238,7 @@ export interface DatosRankingGastos {
     cantidadDescripciones: number;
   };
   filtros: {
-    periodo: PeriodoGrafico;
+    descripcion: string; // Descripción del período (ej: "15 sep - 22 sep 2025")
     fechaInicio: string;
     fechaFin: string;
   };
@@ -258,6 +258,122 @@ export interface ConfiguracionRanking {
   loading: boolean;
   error: string | null;
 }
+
+// Nueva interfaz para filtros de fecha
+export interface FiltroFechas {
+  fechaInicio: Date;
+  fechaFin: Date;
+}
+
+// Presets de períodos comunes para facilidad de uso
+export interface PresetPeriodo {
+  id: string;
+  label: string;
+  descripcion: string;
+  getFechas: () => FiltroFechas;
+}
+
+// Función helper para generar presets comunes
+export const generarPresetsPeriodos = (): PresetPeriodo[] => {
+  const hoy = new Date();
+  
+  return [
+    {
+      id: 'hoy',
+      label: 'Hoy',
+      descripcion: 'Solo los gastos de hoy',
+      getFechas: () => {
+        const inicio = new Date(hoy);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(hoy);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'ayer',
+      label: 'Ayer',
+      descripcion: 'Gastos del día anterior',
+      getFechas: () => {
+        const ayer = new Date(hoy);
+        ayer.setDate(hoy.getDate() - 1);
+        const inicio = new Date(ayer);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(ayer);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'ultimos7dias',
+      label: 'Últimos 7 días',
+      descripcion: 'Una semana completa hasta hoy',
+      getFechas: () => {
+        const inicio = new Date(hoy);
+        inicio.setDate(hoy.getDate() - 6);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(hoy);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'estasemana',
+      label: 'Esta semana',
+      descripcion: 'Desde el lunes hasta hoy',
+      getFechas: () => {
+        const inicio = new Date(hoy);
+        const diaSemana = inicio.getDay();
+        const diasHastaLunes = diaSemana === 0 ? 6 : diaSemana - 1;
+        inicio.setDate(inicio.getDate() - diasHastaLunes);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(hoy);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'estemes',
+      label: 'Este mes',
+      descripcion: 'Todo el mes actual',
+      getFechas: () => {
+        const inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'mesanterior',
+      label: 'Mes anterior',
+      descripcion: 'Todo el mes pasado',
+      getFechas: () => {
+        const mesAnterior = hoy.getMonth() - 1;
+        const año = mesAnterior < 0 ? hoy.getFullYear() - 1 : hoy.getFullYear();
+        const mes = mesAnterior < 0 ? 11 : mesAnterior;
+        
+        const inicio = new Date(año, mes, 1);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(año, mes + 1, 0);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    },
+    {
+      id: 'esteano',
+      label: 'Este año',
+      descripcion: 'Todo el año actual',
+      getFechas: () => {
+        const inicio = new Date(hoy.getFullYear(), 0, 1);
+        inicio.setHours(0, 0, 0, 0);
+        const fin = new Date(hoy.getFullYear(), 11, 31);
+        fin.setHours(23, 59, 59, 999);
+        return { fechaInicio: inicio, fechaFin: fin };
+      }
+    }
+  ];
+};
 
 // Paleta de colores para el ranking (gradiente de intensidad)
 export const COLORES_RANKING = [

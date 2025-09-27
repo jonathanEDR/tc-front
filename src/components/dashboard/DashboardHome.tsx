@@ -9,14 +9,15 @@ import {
   ActivitySection
 } from './DashboardGrid';
 import MetricCard from './MetricCard';
-import GraphCarousel from './GraphCarousel';
+
 import GraphModal from './GraphModal';
 import { GraphModalProvider, useGraphModal } from './GraphModalContext';
-import CajaLinealPreview from './CajaLinealPreview';
-import { DistribucionGastosPreview, RankingGastosPreview } from './GraphPreviews';
 import GraficoCajaLineal from '../graficos/GraficoCajaLineal';
 import GraficoDistribucionGastos from '../graficos/GraficoDistribucionGastos';
 import GraficoRankingGastos from '../graficos/GraficoRankingGastos';
+import GraficoCajaLinealCompact from '../graficos/compact/GraficoCajaLinealCompact';
+import GraficoRankingGastosCompact from '../graficos/compact/GraficoRankingGastosCompact';
+import GraficoDistribucionGastosCompact from '../graficos/compact/GraficoDistribucionGastosCompact';
 import { useDashboardMetrics } from '../../hooks/useDashboardMetrics';
 import { useActividadReciente } from '../../hooks/useActividadReciente';
 
@@ -110,34 +111,31 @@ const DashboardContent: React.FC = () => {
           />
         </MetricsGrid>
 
-        {/* Carrusel Central de Gráficos */}
+        {/* Gráficos Compactos con Datos Reales */}
         <CentralArea>
-          <GraphCarousel>
-            <div className="w-full h-full bg-blue-100 flex items-center justify-center rounded-lg">
-              <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
-                <h3 className="font-semibold text-blue-800">Gráfico 1</h3>
-                <p className="text-sm text-blue-600">Tendencia Semanal</p>
-                <CajaLinealPreview onClick={() => abrirModal('caja-lineal')} />
-              </div>
-            </div>
-            <div className="w-full h-full bg-green-100 flex items-center justify-center rounded-lg">
-              <div className="text-center">
-                <div className="text-4xl mb-2">🍰</div>
-                <h3 className="font-semibold text-green-800">Gráfico 2</h3>
-                <p className="text-sm text-green-600">Distribución</p>
-                <DistribucionGastosPreview onClick={() => abrirModal('distribucion-gastos')} />
-              </div>
-            </div>
-            <div className="w-full h-full bg-orange-100 flex items-center justify-center rounded-lg">
-              <div className="text-center">
-                <div className="text-4xl mb-2">📊</div>
-                <h3 className="font-semibold text-orange-800">Gráfico 3</h3>
-                <p className="text-sm text-orange-600">Ranking de Gastos</p>
-                <RankingGastosPreview onClick={() => abrirModal('ranking-gastos')} />
-              </div>
-            </div>
-          </GraphCarousel>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+            {/* Gráfico Lineal Compacto */}
+            <GraficoCajaLinealCompact
+              className="h-full"
+              onVerMas={() => abrirModal('caja-lineal')}
+              periodoInicial="ultimos7dias"
+            />
+
+            {/* Distribución de Gastos Compacta */}
+            <GraficoDistribucionGastosCompact
+              className="h-full"
+              onVerMas={() => abrirModal('distribucion-gastos')}
+              periodoInicial="ultimos7dias"
+            />
+
+            {/* Ranking de Gastos Compacto */}
+            <GraficoRankingGastosCompact
+              className="h-full"
+              onVerMas={() => abrirModal('ranking-gastos')}
+              periodoInicial="ultimos7dias"
+              limitarItems={5}
+            />
+          </div>
         </CentralArea>
 
         {/* Accesos Rápidos a Módulos */}

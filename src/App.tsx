@@ -13,6 +13,7 @@ import HerramientasHub from './pages/HerramientasHub';
 import CatalogoGastos from './pages/CatalogoGastos';
 import CatalogoProductos from './pages/CatalogoProductos';
 import CatalogoServicios from './pages/CatalogoServicios';
+import Reportes from './pages/Reportes';
 
 export default function App() {
   return (
@@ -175,6 +176,20 @@ export default function App() {
             <>
               <SignedIn>
                 <CatalogoServicios />
+              </SignedIn>
+              <SignedOut>
+                <RedirectToSignIn />
+              </SignedOut>
+            </>
+          }
+        />
+
+        <Route
+          path="/reportes"
+          element={
+            <>
+              <SignedIn>
+                <Reportes />
               </SignedIn>
               <SignedOut>
                 <RedirectToSignIn />
