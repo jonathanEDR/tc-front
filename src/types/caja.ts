@@ -8,6 +8,7 @@ export enum CategoriaCaja {
 
 // Nuevas categorías específicas para ingresos
 export enum CategoriaIngreso {
+  APERTURA_CAJA = 'apertura_caja',
   VENTA_DIRECTA = 'venta_directa',
   VENTA_OPERACIONES = 'venta_operaciones',
   INGRESOS_FINANCIEROS = 'ingresos_financieros',
@@ -146,6 +147,7 @@ export const LABELS_CATEGORIA: Record<CategoriaCaja, string> = {
 };
 
 export const LABELS_CATEGORIA_INGRESO: Record<CategoriaIngreso, string> = {
+  [CategoriaIngreso.APERTURA_CAJA]: 'Apertura de Caja',
   [CategoriaIngreso.VENTA_DIRECTA]: 'Venta Directa',
   [CategoriaIngreso.VENTA_OPERACIONES]: 'Venta de Operaciones',
   [CategoriaIngreso.INGRESOS_FINANCIEROS]: 'Ingresos Financieros',

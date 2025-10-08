@@ -7,8 +7,7 @@ import {
   LABELS_CATEGORIA_INGRESO,
   TipoMovimiento
 } from '../../types/caja';
-import { DateRangePicker } from '../common/DateTimeComponents';
-import { dateUtils } from '../../utils/dateUtils';
+
 
 interface Props {
   filtros: IFiltrosCaja;
@@ -231,9 +230,20 @@ const FiltrosCaja: React.FC<Props> = memo(({ filtros, onFiltroChange, onLimpiar,
                   onFiltroChange('categoria', value);
                   onFiltroChange('categoriaIngreso', undefined); // Limpiar categoria de ingreso
                 } else {
-                  // Si no hay tipo específico, permitir ambos
-                  onFiltroChange('categoria', value);
-                  onFiltroChange('categoriaIngreso', value);
+                  // Si no hay tipo específico, detectar automáticamente
+                  if (value && Object.keys(LABELS_CATEGORIA_INGRESO).includes(value)) {
+                    // Es una categoría de ingreso
+                    onFiltroChange('categoriaIngreso', value);
+                    onFiltroChange('categoria', undefined);
+                  } else if (value && Object.keys(LABELS_CATEGORIA).includes(value)) {
+                    // Es una categoría de salida
+                    onFiltroChange('categoria', value);
+                    onFiltroChange('categoriaIngreso', undefined);
+                  } else {
+                    // Limpiar ambos si no se selecciona nada
+                    onFiltroChange('categoria', undefined);
+                    onFiltroChange('categoriaIngreso', undefined);
+                  }
                 }
               }}
               disabled={loading}

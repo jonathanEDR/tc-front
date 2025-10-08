@@ -69,7 +69,7 @@ const FormularioMovimiento: React.FC<Props> = memo(({ tipoMovimiento: tipoMovimi
     if (tipoMovimientoProp === TipoMovimiento.ENTRADA) {
       return {
         ...baseDefaults,
-        categoriaIngreso: CategoriaIngreso.VENTA_DIRECTA // Categoría por defecto para ingresos
+        categoriaIngreso: CategoriaIngreso.APERTURA_CAJA // Categoría por defecto para ingresos (apertura de caja)
       };
     } else if (tipoMovimientoProp === TipoMovimiento.SALIDA) {
       const categoriaDefault = CategoriaCaja.OPERACIONES;

@@ -4,6 +4,8 @@ import { FiltroFechas, generarPresetsPeriodos } from '../types/graficos';
 import { IMovimientoCaja, IFiltrosCaja, TipoMovimiento } from '../types/caja';
 import { obtenerMovimientos } from '../utils/cajaApi';
 import SelectorFechas from '../components/common/SelectorFechas';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // Función helper para formatear soles peruanos
 const formatearSoles = (monto: number): string => {
@@ -68,6 +70,75 @@ const exportarCSV = (movimientos: IMovimientoCaja[], fechaInicio: Date, fechaFin
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+};
+
+// Función para exportar a PDF
+const exportarPDF = (movimientos: IMovimientoCaja[], fechaInicio: Date, fechaFin: Date) => {
+  const doc = new jsPDF();
+  
+  // Configuración del documento
+  doc.setFontSize(18);
+  doc.text('Reporte Detallado de Movimientos', 14, 22);
+  
+  // Información del período
+  doc.setFontSize(12);
+  doc.text(`Período: ${fechaInicio.toLocaleDateString('es-PE')} - ${fechaFin.toLocaleDateString('es-PE')}`, 14, 32);
+  doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-PE')}`, 14, 40);
+  
+  // Calcular estadísticas
+  const ingresos = movimientos.filter(m => m.tipoMovimiento === TipoMovimiento.ENTRADA);
+  const gastos = movimientos.filter(m => m.tipoMovimiento === TipoMovimiento.SALIDA);
+  const totalIngresos = ingresos.reduce((sum, m) => sum + m.monto, 0);
+  const totalGastos = gastos.reduce((sum, m) => sum + m.monto, 0);
+  const balance = totalIngresos - totalGastos;
+  
+  // Resumen financiero
+  doc.setFontSize(14);
+  doc.text('Resumen Financiero:', 14, 52);
+  doc.setFontSize(11);
+  doc.text(`Total Movimientos: ${movimientos.length}`, 14, 60);
+  doc.text(`Ingresos: ${formatearSoles(totalIngresos)} (${ingresos.length} movimientos)`, 14, 68);
+  doc.text(`Gastos: ${formatearSoles(totalGastos)} (${gastos.length} movimientos)`, 14, 76);
+  doc.text(`Balance: ${formatearSoles(balance)}`, 14, 84);
+  
+  // Preparar datos para la tabla
+  const tableData = movimientos.map(mov => [
+    formatearFecha(mov.fechaCaja),
+    mov.tipoMovimiento === TipoMovimiento.ENTRADA ? 'Ingreso' : 'Gasto',
+    mov.descripcion,
+    mov.tipoMovimiento === TipoMovimiento.ENTRADA ? 
+      (mov.categoriaIngreso || '-') : 
+      (mov.categoria || '-'),
+    mov.tipoCosto || '-',
+    formatearSoles(mov.monto),
+    mov.metodoPago || '-'
+  ]);
+  
+  // Generar tabla
+  autoTable(doc, {
+    head: [['Fecha', 'Tipo', 'Descripción', 'Categoría', 'Tipo Costo', 'Monto', 'Método Pago']],
+    body: tableData,
+    startY: 92,
+    theme: 'striped',
+    headStyles: { fillColor: [41, 128, 185] },
+    styles: { 
+      fontSize: 8,
+      cellPadding: 2
+    },
+    columnStyles: {
+      0: { cellWidth: 25 }, // Fecha
+      1: { cellWidth: 18 }, // Tipo
+      2: { cellWidth: 40 }, // Descripción
+      3: { cellWidth: 25 }, // Categoría
+      4: { cellWidth: 20 }, // Tipo Costo
+      5: { cellWidth: 22, halign: 'right' }, // Monto
+      6: { cellWidth: 20 } // Método Pago
+    }
+  });
+  
+  // Guardar el archivo
+  const nombreArchivo = `reporte_detallado_${fechaInicio.toISOString().split('T')[0]}_a_${fechaFin.toISOString().split('T')[0]}.pdf`;
+  doc.save(nombreArchivo);
 };
 
 function ReportesContent() {
@@ -136,13 +207,22 @@ function ReportesContent() {
     setFiltroFechas(nuevasFechas);
   };
 
-  // Manejar exportación
-  const handleExportar = () => {
+  // Manejar exportación CSV
+  const handleExportarCSV = () => {
     if (movimientos.length === 0) {
       alert('No hay datos para exportar');
       return;
     }
     exportarCSV(movimientos, filtroFechas.fechaInicio, filtroFechas.fechaFin);
+  };
+
+  // Manejar exportación PDF
+  const handleExportarPDF = () => {
+    if (movimientos.length === 0) {
+      alert('No hay datos para exportar');
+      return;
+    }
+    exportarPDF(movimientos, filtroFechas.fechaInicio, filtroFechas.fechaFin);
   };
 
   return (
@@ -176,11 +256,18 @@ function ReportesContent() {
                 {loading ? 'Cargando...' : 'Actualizar'}
               </button>
               <button
-                onClick={handleExportar}
+                onClick={handleExportarCSV}
                 disabled={loading || movimientos.length === 0}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                📥 Exportar CSV
+                � Exportar CSV
+              </button>
+              <button
+                onClick={handleExportarPDF}
+                disabled={loading || movimientos.length === 0}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                📄 Exportar PDF
               </button>
             </div>
           </div>
